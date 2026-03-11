@@ -1,0 +1,4 @@
+sources:
+  - name: raw
+    tables:
+      - name: users

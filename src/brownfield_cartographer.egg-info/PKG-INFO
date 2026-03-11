@@ -5,6 +5,13 @@ Summary: Repository ingestion layer
 Requires-Python: >=3.10
 Description-Content-Type: text/markdown
 Requires-Dist: pydantic>=2.0
+Requires-Dist: networkx>=3.0
+Requires-Dist: tree-sitter>=0.20
+Requires-Dist: tree-sitter-python>=0.20
+Requires-Dist: sqlglot>=20.0
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: nbformat>=5.0
+Requires-Dist: pyvis>=0.3
 
 # brownfield-cartographer
 

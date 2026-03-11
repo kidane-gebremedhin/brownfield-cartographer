@@ -55,8 +55,7 @@ class PythonModuleFacts:
 
 
 def _line_of(source: bytes, byte_offset: int) -> int:
-    return source[:byte_offset].count(b"
-") + 1
+    return source[:byte_offset].count(b"\n") + 1
 
 
 def _node_text(node, source: bytes) -> str:

@@ -20,6 +20,7 @@ cartographer visualize <artifact_dir>
 - expose structured terminal feedback
 - load persisted artifacts for querying
 - regenerate or open graph outputs when needed
+
 ## Acceptance Criteria
 - analyze runs the full implemented pipeline
 - query can operate from saved artifacts

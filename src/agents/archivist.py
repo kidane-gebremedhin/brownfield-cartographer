@@ -1,0 +1,185 @@
+"""Archivist agent: generates durable artifacts for humans and AI agents.
+
+Artifacts written to .cartography/:
+- CODEBASE.md
+- onboarding_brief.md
+- module_graph.json
+- lineage_graph.json
+- cartography_trace.jsonl
+
+Design:
+- Deterministic output ordering
+- Consumes outputs of Surveyor/Hydrologist (and later Semanticist)
+- JSON artifacts are machine-readable for Navigator consumption
+- Pyvis HTML: module_graph.html, lineage_graph.html (optional; written when pyvis is available)
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from graph.serializers import serialize_digraph
+
+logger = logging.getLogger(__name__)
+
+try:
+    from graph.visualization import build_lineage_graph_html, build_module_graph_html
+    _PYVIS_AVAILABLE = True
+except ImportError:
+    _PYVIS_AVAILABLE = False
+
+
+@dataclass(frozen=True)
+class ArchivistInputs:
+    repo_root: Path
+    surveyor_result: Any  # SurveyorResult
+    hydrologist_result: Any  # HydrologistResult
+    day_one_answers_markdown: str | None = None  # optional (Semanticist later)
+    trace_events: list[dict[str, Any]] | None = None
+
+
+def write_artifacts(inputs: ArchivistInputs, out_dir: Path | str | None = None) -> Path:
+    """Write all archivist artifacts. Returns output directory path."""
+    repo_root = Path(inputs.repo_root).resolve()
+    out = Path(out_dir) if out_dir is not None else repo_root / '.cartography'
+    out.mkdir(parents=True, exist_ok=True)
+
+    # JSON graph artifacts
+    module_graph = serialize_digraph(inputs.surveyor_result.graph)
+    lineage_graph = serialize_digraph(inputs.hydrologist_result.graph)
+
+    _write_json(out / 'module_graph.json', module_graph)
+    _write_json(out / 'lineage_graph.json', lineage_graph)
+
+    # Markdown artifacts
+    codebase_md = render_codebase_md(inputs)
+    onboarding_md = render_onboarding_brief(inputs)
+
+    (out / 'CODEBASE.md').write_text(codebase_md, encoding='utf-8')
+    (out / 'onboarding_brief.md').write_text(onboarding_md, encoding='utf-8')
+
+    # Trace log
+    trace_path = out / 'cartography_trace.jsonl'
+    _write_trace_jsonl(trace_path, inputs.trace_events or [])
+
+    # Pyvis HTML (optional)
+    if _PYVIS_AVAILABLE:
+        try:
+            build_module_graph_html(
+                inputs.surveyor_result.graph,
+                getattr(inputs.surveyor_result, 'modules', {}),
+                getattr(inputs.surveyor_result, 'pagerank', {}),
+                out / 'module_graph.html',
+                open_browser=False,
+            )
+            build_lineage_graph_html(inputs.hydrologist_result.graph, out / 'lineage_graph.html', open_browser=False)
+        except Exception as e:
+            logger.warning('Pyvis HTML generation failed: %s', e)
+
+    return out
+
+
+def render_codebase_md(inputs: ArchivistInputs) -> str:
+    """Render CODEBASE.md with required sections."""
+    s = inputs.surveyor_result
+    h = inputs.hydrologist_result
+
+    # Recent velocity hotspots
+    velocity_sorted = sorted(
+        getattr(s, 'modules', {}).values(),
+        key=lambda m: (getattr(m, 'change_velocity_30d', 0), getattr(m, 'change_velocity_90d', 0)),
+        reverse=True,
+    )
+    top_velocity = velocity_sorted[:10]
+
+    # Sources/sinks from lineage graph
+    lg = h.graph
+    sources = [n for n in lg.nodes() if lg.in_degree(n) == 0]
+    sinks = [n for n in lg.nodes() if lg.out_degree(n) == 0]
+
+    # Purpose index (placeholder until semanticist is integrated)
+    module_purpose_lines = []
+    for m in sorted(getattr(s, 'modules', {}).values(), key=lambda x: x.path):
+        module_purpose_lines.append(f"- `{m.path}`: (purpose pending)")
+
+    lines = []
+    lines.append('# CODEBASE')
+    lines.append('')
+
+    lines.append('## Architecture Overview')
+    lines.append('- Generated from Surveyor (module graph) and Hydrologist (lineage graph).')
+    lines.append('')
+
+    lines.append('## Critical Path')
+    lines.append('- (pending: derived from graph centrality + semanticist synthesis)')
+    lines.append('')
+
+    lines.append('## Data Sources & Sinks')
+    lines.append('### Sources')
+    for n in sorted(sources)[:20]:
+        lines.append(f"- `{n}`")
+    lines.append('')
+    lines.append('### Sinks')
+    for n in sorted(sinks)[:20]:
+        lines.append(f"- `{n}`")
+    lines.append('')
+
+    lines.append('## Known Debt')
+    lines.append('- (pending: dead code candidates, high complexity modules)')
+    lines.append('')
+
+    lines.append('## Recent Change Velocity')
+    for m in top_velocity:
+        lines.append(f"- `{m.path}`: 30d={m.change_velocity_30d}, 90d={m.change_velocity_90d}")
+    lines.append('')
+
+    lines.append('## Module Purpose Index')
+    lines.extend(module_purpose_lines)
+    lines.append('')
+
+    return '\n'.join(lines)
+
+
+def render_onboarding_brief(inputs: ArchivistInputs) -> str:
+    """Render onboarding_brief.md with required sections."""
+    lines = []
+    lines.append('# Onboarding Brief')
+    lines.append('')
+
+    lines.append('## Day-One Answers')
+    if inputs.day_one_answers_markdown:
+        lines.append(inputs.day_one_answers_markdown.strip())
+    else:
+        lines.append('- (pending: semanticist synthesis)')
+    lines.append('')
+
+    lines.append('## Evidence citations')
+    lines.append('- Module graph: `.cartography/module_graph.json`')
+    lines.append('- Lineage graph: `.cartography/lineage_graph.json`')
+    lines.append('')
+
+    lines.append('## Confidence notes')
+    lines.append('- Static extraction is conservative; dynamic refs are recorded as unresolved.')
+    lines.append('')
+
+    lines.append('## Known unknowns')
+    lines.append('- Business logic semantics pending semanticist.')
+    lines.append('- Runtime-only dataset names may appear as `<dynamic>` / `<sql_query>` / `<spark_read>` etc.')
+    lines.append('')
+
+    return '\n'.join(lines)
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding='utf-8')
+
+
+def _write_trace_jsonl(path: Path, events: list[dict[str, Any]]) -> None:
+    # deterministic ordering: write in provided order
+    with path.open('w', encoding='utf-8') as f:
+        for ev in events:
+            f.write(json.dumps(ev, sort_keys=True) + '\n')

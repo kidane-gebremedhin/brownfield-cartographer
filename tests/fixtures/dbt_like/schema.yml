@@ -1,0 +1,12 @@
+sources:
+  - name: raw
+    tables:
+      - name: users
+      - name: events
+models:
+  - name: stg_users
+    depends_on:
+      nodes: []
+  - name: fct_orders
+    depends_on:
+      nodes: ["stg_users", "raw.events"]
