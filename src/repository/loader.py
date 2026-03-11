@@ -12,6 +12,10 @@ Remote clones:
 from __future__ import annotations
 
 import logging
+import os
+
+# Large repos (e.g. apache/airflow) can exceed 180s; override with CARTOGRAPHER_CLONE_TIMEOUT (seconds).
+CLONE_TIMEOUT_S = int(os.environ.get("CARTOGRAPHER_CLONE_TIMEOUT", "600"))
 import re
 import tempfile
 from dataclasses import dataclass
@@ -86,7 +90,7 @@ def _clone_github(url: str, *, ref: str | None = None, temp_parent: Path | None 
     args += ['--', url, str(dest)]
 
     try:
-        run_cmd(args, timeout_s=180)
+        run_cmd(args, timeout_s=CLONE_TIMEOUT_S)
     except Exception:
         tmpdir_obj.cleanup()
         raise

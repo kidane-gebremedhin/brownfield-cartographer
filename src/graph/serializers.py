@@ -62,3 +62,15 @@ def _jsonable(obj: Any) -> Any:
             pass
     return str(obj)
 
+
+def deserialize_digraph(payload: dict[str, Any]) -> nx.DiGraph:
+    """Deserialize a dict from serialize_digraph back to a DiGraph."""
+    g = nx.DiGraph()
+    for n in payload.get("nodes", []):
+        attrs = n.get("attrs") or {}
+        g.add_node(n["id"], **attrs)
+    for e in payload.get("edges", []):
+        attrs = e.get("attrs") or {}
+        g.add_edge(e["source"], e["target"], **attrs)
+    return g
+

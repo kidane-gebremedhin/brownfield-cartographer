@@ -16,13 +16,13 @@ def test_format_implementation_matches_graph_and_semantic():
 def test_format_lineage_result():
     result = LineageResult(start="analytics.events", direction="upstream", nodes=["raw.events", "analytics.events"], edges=[], evidence="Lineage graph traversal.")
     out = format_lineage_result(result)
-    assert "Graph-backed" in out
+    assert "Evidence" in out or "static analysis" in out
     assert "analytics.events" in out
 
 def test_format_blast_radius_result():
     result = BlastRadiusResult(start="raw.events", affected=["analytics.events"], evidence="Downstream traversal. 1 nodes affected.")
     out = format_blast_radius_result(result)
-    assert "Graph-backed" in out
+    assert "Evidence" in out or "static analysis" in out
     assert "Affected" in out
 
 def test_format_module_explanation():

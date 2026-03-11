@@ -14,7 +14,7 @@ Define the implementation phases and the exact build order.
 - create spec files
 - scaffold source tree
 
-## Phase 1 — Core Models and Graph
+## Phase 1 — Core Models and Graph, MUST produce the src/models package before any analyzers or agents are implemented.
 - implement Pydantic models
 - implement graph wrapper
 - implement graph serialization contracts

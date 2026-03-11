@@ -45,7 +45,7 @@ def test_archivist_writes_all_artifacts(tmp_path):
     assert '## Critical Path' in codebase
     assert '## Data Sources & Sinks' in codebase
     assert '## Known Debt' in codebase
-    assert '## Recent Change Velocity' in codebase
+    assert 'High-Velocity' in codebase or 'Recent Change Velocity' in codebase
     assert '## Module Purpose Index' in codebase
 
     onboarding = (out / 'onboarding_brief.md').read_text(encoding='utf-8')

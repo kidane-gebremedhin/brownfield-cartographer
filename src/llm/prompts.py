@@ -46,12 +46,12 @@ Module purposes in this group:
 Domain label:"""
 
 # ---- Day-One synthesis (five FDE answers) ----
-DAY_ONE_TEMPLATE = """Synthesize the five Day-One answers for a developer onboarding to this codebase. Use only the provided context; cite provenance (e.g. "from module graph", "from lineage").
+DAY_ONE_TEMPLATE = """Synthesize the five Day-One answers for a developer onboarding to this codebase. Use only the provided context. For each answer, cite specific evidence: file paths and line numbers where applicable (e.g. "see src/ingest.py:12-45", "from lineage graph: table X").
 
 Context:
 {context}
 
-Answer each in 1–3 short sentences. Use the exact headings below.
+Answer each in 1–3 short sentences. Use the exact headings below. Include evidence citations (file path and line range or graph node) for trust.
 
 1. Primary ingestion path
 2. Critical outputs/endpoints

@@ -18,7 +18,9 @@ import networkx as nx
 
 from agents.archivist import ArchivistInputs, write_artifacts
 from agents.hydrologist import HydrologistResult, build_lineage_graph
+from agents.semanticist import run_semanticist
 from agents.surveyor import SurveyorResult, run_surveyor
+from models.trace import CartographyTraceEntry, agent_trace_entry
 from analyzers.sql_lineage import SqlDialect
 from graph.visualization import build_lineage_graph_html, build_module_graph_html
 from incremental import (
@@ -41,6 +43,9 @@ class AnalyzeOptions:
     output_dir: Path | None = None
     branch: str | None = None
     dialect: SqlDialect = "postgres"
+    # Optional: when set, run Semanticist and include purposes/drift/day-one in artifacts
+    llm_provider: Any = None
+    embeddings_provider: Any = None
 
 
 @dataclass(frozen=True)
@@ -103,12 +108,39 @@ def run_analyze(opts: AnalyzeOptions) -> AnalyzeResult:
         surveyor_result: SurveyorResult = run_surveyor(repo_root)
         hydro_result: HydrologistResult = build_lineage_graph(repo_root, dialect=opts.dialect)
 
+        trace_events: list[CartographyTraceEntry | dict[str, Any]] = [
+            trace_event_for_invalidate(changes, len(current_hashes)),
+            agent_trace_entry("surveyor", evidence_source="static analysis (tree-sitter + NetworkX)", confidence=1.0, payload={"modules_analyzed": len(surveyor_result.modules)}),
+            agent_trace_entry("hydrologist", evidence_source="static analysis (sqlglot + DAG config)", confidence=1.0, payload={"lineage_nodes": hydro_result.graph.number_of_nodes(), "lineage_edges": hydro_result.graph.number_of_edges()}),
+        ]
+
+        semanticist_result = None
+        day_one_markdown = None
+        if getattr(opts, "llm_provider", None) is not None:
+            try:
+                sem_result = run_semanticist(
+                    repo_root,
+                    surveyor_result,
+                    hydro_result,
+                    opts.llm_provider,
+                    embeddings_provider=getattr(opts, "embeddings_provider", None),
+                )
+                semanticist_result = sem_result
+                day_one_markdown = sem_result.day_one_markdown
+                trace_events.append(agent_trace_entry("semanticist", evidence_source="LLM inference", confidence=0.85, payload={"purpose_count": len(sem_result.purpose_statements), "domains": len(sem_result.domains)}))
+            except Exception as e:
+                logger.warning("Semanticist run failed: %s", e)
+
+        trace_events.append(agent_trace_entry("archivist", evidence_source="artifact serialization", confidence=1.0, payload={}))
+
         artifact_dir = write_artifacts(
             ArchivistInputs(
                 repo_root=repo_root,
                 surveyor_result=surveyor_result,
                 hydrologist_result=hydro_result,
-                trace_events=[trace_event_for_invalidate(changes, len(current_hashes))],
+                day_one_answers_markdown=day_one_markdown,
+                semanticist_result=semanticist_result,
+                trace_events=trace_events,
             ),
             out_dir=artifact_dir,
         )

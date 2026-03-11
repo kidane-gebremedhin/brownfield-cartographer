@@ -43,7 +43,7 @@ def test_navigator_trace_lineage(tmp_path):
     out = nav.trace_lineage("output", direction="upstream")
     assert isinstance(out, str)
     assert "output" in out
-    assert "Graph-backed" in out
+    assert "Evidence" in out or "static analysis" in out or "Graph-backed" in out
     assert "input" in out
 
 
@@ -53,7 +53,7 @@ def test_navigator_blast_radius(tmp_path):
     out = nav.blast_radius("input")
     assert isinstance(out, str)
     assert "input" in out
-    assert "Graph-backed" in out
+    assert "Evidence" in out or "static analysis" in out or "Graph-backed" in out
     assert "Affected" in out or "affected" in out
 
 
@@ -63,5 +63,5 @@ def test_navigator_explain_module(tmp_path):
     out = nav.explain_module("a.py")
     assert isinstance(out, str)
     assert "a.py" in out
-    assert "Graph-backed" in out
+    assert "Evidence" in out or "Graph-backed" in out
     assert "Semantic" in out

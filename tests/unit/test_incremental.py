@@ -86,6 +86,7 @@ def test_save_and_load_manifest(tmp_path):
 
 
 def test_append_trace_event(tmp_path):
+    from models.trace import CartographyTraceEntry
     tmp_path.mkdir(parents=True, exist_ok=True)
     append_trace_event(tmp_path, {"event": "reuse", "files_checked": 5})
     path = tmp_path / "cartography_trace.jsonl"
@@ -93,7 +94,7 @@ def test_append_trace_event(tmp_path):
     lines = path.read_text().splitlines()
     assert len(lines) == 1
     assert json.loads(lines[0])["event"] == "reuse"
-    append_trace_event(tmp_path, {"event": "invalidate"})
+    append_trace_event(tmp_path, CartographyTraceEntry(event="invalidate", reason="test"))
     lines = path.read_text().splitlines()
     assert len(lines) == 2
     assert json.loads(lines[1])["event"] == "invalidate"
@@ -101,8 +102,8 @@ def test_append_trace_event(tmp_path):
 
 def test_trace_event_for_reuse():
     ev = trace_event_for_reuse(ChangeSet(unchanged=True, reason="no file changes"), 10)
-    assert ev["event"] == "incremental_reuse"
-    assert ev["files_checked"] == 10
+    assert ev.event == "incremental_reuse"
+    assert ev.files_checked == 10
 
 
 def test_trace_event_for_invalidate():
@@ -110,9 +111,9 @@ def test_trace_event_for_invalidate():
         ChangeSet(unchanged=False, added=["x.py"], removed=[], modified=["a.py"], reason="changes"),
         10,
     )
-    assert ev["event"] == "incremental_invalidate"
-    assert ev["added"] == ["x.py"]
-    assert ev["modified"] == ["a.py"]
+    assert ev.event == "incremental_invalidate"
+    assert ev.added == ["x.py"]
+    assert ev.modified == ["a.py"]
 
 
 def test_get_current_hashes(tmp_path):

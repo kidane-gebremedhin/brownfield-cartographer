@@ -4,6 +4,9 @@ Commands:
 - cartographer analyze <repo_or_path> [--output-dir ...] [--branch ...] [--dialect ...]
 - cartographer query <artifact_dir>
 - cartographer visualize <artifact_dir> [--open-browser]
+
+Semanticist (purpose statements, drift, domains, day-one answers) runs when OPENROUTER_API_KEY
+is set (e.g. in .env). Use cheap models (Gemini Flash / Mistral) for bulk, expensive (DeepSeek / OpenAI) for synthesis.
 """
 
 from __future__ import annotations
@@ -15,6 +18,29 @@ from typing import Sequence
 
 from analyzers.sql_lineage import SqlDialect
 from orchestrator import AnalyzeOptions, run_analyze, run_query, run_visualize
+
+
+def _load_env() -> None:
+    """Load .env from cwd and repo root so API keys are available."""
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+        # Also load from project root if different
+        load_dotenv(Path.cwd() / ".env")
+    except ImportError:
+        pass
+
+
+def _create_semanticist_providers():
+    """Create LLM and embeddings providers from env for semanticist. Returns (llm_provider, embeddings_provider) or (None, None)."""
+    _load_env()
+    from llm.tiered_provider import create_tiered_provider_from_env
+    from llm.embeddings import create_embeddings_from_env
+    llm = create_tiered_provider_from_env()
+    if llm is None:
+        return None, None
+    embeddings = create_embeddings_from_env()
+    return llm, embeddings
 
 
 def _add_analyze(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
@@ -80,11 +106,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _cmd_analyze(args: argparse.Namespace) -> int:
     output_dir = Path(args.output_dir).expanduser().resolve() if args.output_dir else None
+    llm_provider, embeddings_provider = _create_semanticist_providers()
     opts = AnalyzeOptions(
         input_path_or_url=args.repo_or_path,
         output_dir=output_dir,
         branch=args.branch,
         dialect=args.dialect,
+        llm_provider=llm_provider,
+        embeddings_provider=embeddings_provider,
     )
     res = run_analyze(opts)
     print(f"Repository root: {res.repo_root}")
@@ -93,6 +122,8 @@ def _cmd_analyze(args: argparse.Namespace) -> int:
         print("Artifacts reused (no file changes).")
     print(f"Modules analyzed: {res.modules_analyzed}")
     print(f"Lineage graph: {res.lineage_nodes} nodes, {res.lineage_edges} edges")
+    if llm_provider is not None:
+        print("Semanticist: purpose statements, drift, domains, and day-one answers included.")
     return 0
 
 

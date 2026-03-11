@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import logging
 import re
+from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
 from agents.hydrologist import blast_radius, find_sources, find_sinks
-from llm.budget import TokenBudget
+from llm.budget import ContextWindowBudget, TokenBudget, estimate_tokens
 from llm.embeddings import EmbeddingsProvider
 from llm.prompts import (
     render_cluster_label,
@@ -29,9 +30,8 @@ logger = logging.getLogger(__name__)
 # Drift classification labels (spec)
 DriftLabel = Literal["aligned", "stale", "contradictory", "insufficient"]
 
-# Approximate tokens for budget (chars / 4)
 def _est_tokens(text: str) -> int:
-    return max(1, len(text) // 4)
+    return estimate_tokens(text)
 
 
 def extract_module_docstring(source: str) -> str | None:
@@ -43,6 +43,150 @@ def extract_module_docstring(source: str) -> str | None:
     if m:
         return (m.group(1) or m.group(2) or "").strip() or None
     return None
+
+
+def generate_purpose_statement(
+    module_path: str,
+    source: str,
+    llm_provider: LLMProvider,
+    *,
+    max_source_lines: int = 80,
+    budget: TokenBudget | ContextWindowBudget | None = None,
+) -> tuple[str, DriftLabel]:
+    """Generate a 2–3 sentence purpose statement from the module's code (not docstring), then flag doc drift.
+
+    Prompts the LLM with code preview; cross-references existing docstring and returns
+    (purpose_statement, drift_label). Discrepancies are flagged as Documentation Drift.
+    """
+    preview = "\n".join(source.splitlines()[:max_source_lines])
+    imports_str = ""
+    funcs = ""
+    classes = ""
+    bases = ""
+    try:
+        from analyzers.tree_sitter_analyzer import analyze_python_source
+        facts = analyze_python_source(source.encode("utf-8", errors="replace"), path=module_path)
+        imports_str = ", ".join(f"{x.module}" for x in facts.imports[:20])
+        funcs = ", ".join(f.name for f in facts.functions[:15])
+        classes = ", ".join(c.name for c in facts.classes[:15])
+        bases = ", ".join(b for c in facts.classes for b in c.bases[:3])
+    except Exception:
+        pass
+    loc = len([l for l in source.splitlines() if l.strip() and not l.strip().startswith("#")])
+    prompt = render_purpose_statement(
+        module_path=module_path,
+        loc=loc,
+        imports=imports_str[:500],
+        functions=funcs[:300],
+        classes=classes[:300],
+        bases=bases[:200],
+        source_preview=preview[:4000],
+    )
+    in_tok, out_tok = _est_tokens(prompt), 150
+    if budget is not None:
+        can_afford = budget.can_afford(in_tok, out_tok) if hasattr(budget, "can_afford") else True
+        if not can_afford:
+            return ("(purpose skipped: token budget exhausted)", "insufficient")
+    try:
+        resp = llm_provider.complete(prompt, max_tokens=150, temperature=0.2, tier="bulk")
+        purpose = resp.strip().split("\n")[0][:500]
+    except Exception as e:
+        logger.warning("Purpose statement failed for %s: %s", module_path, e)
+        return ("(purpose generation failed)", "insufficient")
+    if budget is not None:
+        if hasattr(budget, "record_usage"):
+            budget.record_usage(in_tok, _est_tokens(resp))
+        else:
+            budget.add(in_tok, _est_tokens(resp))
+    doc = extract_module_docstring(source)
+    if not doc:
+        return (purpose, "insufficient")
+    drift_prompt = render_drift_classification(purpose, doc)
+    din, dout = _est_tokens(drift_prompt), 30
+    if budget is not None and hasattr(budget, "can_afford") and not budget.can_afford(din, dout):
+        return (purpose, "insufficient")
+    try:
+        drift_resp = llm_provider.complete(drift_prompt, max_tokens=30, temperature=0.0, tier="bulk")
+        raw = drift_resp.strip().lower().split()[0] if drift_resp.strip() else ""
+        drift = raw if raw in ("aligned", "stale", "contradictory", "insufficient") else "insufficient"
+        if budget is not None:
+            if hasattr(budget, "record_usage"):
+                budget.record_usage(din, _est_tokens(drift_resp))
+            else:
+                budget.add(din, _est_tokens(drift_resp))
+    except Exception as e:
+        logger.warning("Drift classification failed for %s: %s", module_path, e)
+        drift = "insufficient"
+    return (purpose, drift)
+
+
+def cluster_into_domains(
+    purpose_statements: dict[str, str],
+    embeddings_provider: EmbeddingsProvider,
+    *,
+    llm_provider: LLMProvider | None = None,
+    budget: TokenBudget | ContextWindowBudget | None = None,
+    num_domains_min: int = 5,
+    num_domains_max: int = 8,
+) -> list[dict[str, Any]]:
+    """Embed all purpose statements, run k-means (k in [5, 8]), label each cluster → Domain Architecture Map."""
+    if not purpose_statements:
+        return []
+    vectors = embeddings_provider.embed(list(purpose_statements.values()))
+    paths = list(purpose_statements.keys())
+    try:
+        clusters = _cluster_assignments(vectors, min_c=num_domains_min, max_c=num_domains_max)
+    except Exception as e:
+        logger.warning("Clustering failed: %s; using single domain", e)
+        clusters = [0] * len(paths)
+    by_c: dict[int, list[str]] = defaultdict(list)
+    for i, cid in enumerate(clusters):
+        if i < len(paths):
+            by_c[cid].append(paths[i])
+    domain_list: list[dict[str, Any]] = []
+    for cid in sorted(by_c.keys()):
+        mods = by_c[cid]
+        purposes_blob = "\n".join(f"- {p}: {purpose_statements.get(p, '')}" for p in mods[:30])
+        label = f"Domain {cid + 1}"
+        if llm_provider and (budget is None or (hasattr(budget, "can_afford") and budget.can_afford(200, 50))):
+            try:
+                prompt = render_cluster_label(purposes_blob)
+                label = llm_provider.complete(prompt, max_tokens=50, temperature=0.2, tier="bulk").strip().split("\n")[0][:80]
+                if hasattr(budget, "record_usage"):
+                    budget.record_usage(_est_tokens(prompt), _est_tokens(label))
+                else:
+                    budget.add(_est_tokens(prompt), _est_tokens(label))
+            except Exception:
+                pass
+        domain_list.append({"label": label, "modules": mods})
+    return domain_list
+
+
+def answer_day_one_questions(
+    surveyor_result: Any,
+    hydrologist_result: Any,
+    llm_provider: LLMProvider,
+    *,
+    semanticist_result: Any = None,
+    budget: TokenBudget | ContextWindowBudget | None = None,
+) -> str:
+    """Synthesis prompt with full Surveyor + Hydrologist (and optional Semanticist) output; returns markdown with evidence citations (file paths and line numbers)."""
+    context = _build_day_one_context(surveyor_result, hydrologist_result, semanticist_result or SemanticistResult())
+    prompt = render_day_one(context)
+    in_tok, out_tok = _est_tokens(prompt), 800
+    if budget is not None and hasattr(budget, "can_afford") and not budget.can_afford(in_tok, out_tok):
+        return _synthesize_day_one_fallback(surveyor_result, hydrologist_result)
+    try:
+        out = llm_provider.complete(prompt, max_tokens=800, temperature=0.3, tier="synthesis")
+        if budget is not None:
+            if hasattr(budget, "record_usage"):
+                budget.record_usage(in_tok, _est_tokens(out))
+            else:
+                budget.add(in_tok, _est_tokens(out))
+        return out
+    except Exception as e:
+        logger.warning("Day-One synthesis failed: %s", e)
+        return _synthesize_day_one_fallback(surveyor_result, hydrologist_result)
 
 
 @dataclass
@@ -62,15 +206,22 @@ def run_semanticist(
     llm_provider: LLMProvider,
     *,
     embeddings_provider: EmbeddingsProvider | None = None,
-    budget: TokenBudget | None = None,
+    budget: TokenBudget | ContextWindowBudget | None = None,
     max_source_lines: int = 80,
     num_domains_min: int = 5,
     num_domains_max: int = 8,
 ) -> SemanticistResult:
-    """Run full semanticist pipeline: purpose, drift, clustering, Day-One synthesis."""
+    """Run full semanticist pipeline: purpose, drift, clustering, Day-One synthesis. Uses tier 'bulk' for purpose/drift/cluster, 'synthesis' for day-one."""
     root = Path(repo_root).resolve()
     budget = budget or TokenBudget()
     out = SemanticistResult()
+    def _can_afford(inc: int, out_t: int) -> bool:
+        return budget.can_afford(inc, out_t) if hasattr(budget, "can_afford") else True
+    def _add(inc: int, out_t: int) -> None:
+        if hasattr(budget, "record_usage"):
+            budget.record_usage(inc, out_t)
+        else:
+            budget.add(inc, out_t)
 
     # Index module source by path
     files = discover_files(root)
@@ -113,13 +264,13 @@ def run_semanticist(
             bases=bases[:200],
             source_preview=preview[:4000],
         )
-        if not budget.can_afford(_est_tokens(prompt), 100):
+        if not _can_afford(_est_tokens(prompt), 100):
             logger.warning("Token budget exhausted; skipping purpose for %s", path)
             continue
         try:
-            resp = llm_provider.complete(prompt, max_tokens=150, temperature=0.2)
+            resp = llm_provider.complete(prompt, max_tokens=150, temperature=0.2, tier="bulk")
             out.purpose_statements[path] = resp.strip().split("\n")[0][:500]
-            budget.add(_est_tokens(prompt), _est_tokens(resp))
+            _add(_est_tokens(prompt), _est_tokens(resp))
         except Exception as e:
             logger.warning("Purpose statement failed for %s: %s", path, e)
 
@@ -131,63 +282,40 @@ def run_semanticist(
             out.drift[path] = "insufficient"
             continue
         prompt = render_drift_classification(purpose, doc)
-        if not budget.can_afford(_est_tokens(prompt), 20):
+        if not _can_afford(_est_tokens(prompt), 20):
             out.drift[path] = "insufficient"
             continue
         try:
-            resp = llm_provider.complete(prompt, max_tokens=30, temperature=0.0)
+            resp = llm_provider.complete(prompt, max_tokens=30, temperature=0.0, tier="bulk")
             raw = resp.strip().lower().split()[0] if resp.strip() else ""
             if raw in ("aligned", "stale", "contradictory", "insufficient"):
                 out.drift[path] = raw
             else:
                 out.drift[path] = "insufficient"
-            budget.add(_est_tokens(prompt), _est_tokens(resp))
+            _add(_est_tokens(prompt), _est_tokens(resp))
         except Exception as e:
             logger.warning("Drift classification failed for %s: %s", path, e)
             out.drift[path] = "insufficient"
 
     # 3) Domain clustering (5–8 domains, readable labels)
     if embeddings_provider and out.purpose_statements:
-        vectors = embeddings_provider.embed(list(out.purpose_statements.values()))
-        paths = list(out.purpose_statements.keys())
-        try:
-            clusters = _cluster_assignments(vectors, min_c=num_domains_min, max_c=num_domains_max)
-        except Exception as e:
-            logger.warning("Clustering failed: %s; using single domain", e)
-            clusters = [0] * len(paths)
-        # Group by cluster id
-        from collections import defaultdict
-        by_c: dict[int, list[str]] = defaultdict(list)
-        for i, cid in enumerate(clusters):
-            if i < len(paths):
-                by_c[cid].append(paths[i])
-        domain_list = []
-        for cid in sorted(by_c.keys()):
-            mods = by_c[cid]
-            purposes_blob = "\n".join(f"- {p}: {out.purpose_statements.get(p, '')}" for p in mods[:30])
-            label = f"Domain {cid + 1}"
-            if budget.can_afford(200, 50):
-                try:
-                    prompt = render_cluster_label(purposes_blob)
-                    label = llm_provider.complete(prompt, max_tokens=50, temperature=0.2).strip().split("\n")[0][:80]
-                    budget.add(_est_tokens(prompt), _est_tokens(label))
-                except Exception:
-                    pass
-            domain_list.append({"label": label, "modules": mods})
-        out.domains = domain_list
+        out.domains = cluster_into_domains(
+            out.purpose_statements,
+            embeddings_provider,
+            llm_provider=llm_provider,
+            budget=budget,
+            num_domains_min=num_domains_min,
+            num_domains_max=num_domains_max,
+        )
 
-    # 4) Day-One synthesis (five answers)
-    context = _build_day_one_context(surveyor_result, hydrologist_result, out)
-    prompt = render_day_one(context)
-    if budget.can_afford(_est_tokens(prompt), 800):
-        try:
-            out.day_one_markdown = llm_provider.complete(prompt, max_tokens=800, temperature=0.3)
-            budget.add(_est_tokens(prompt), _est_tokens(out.day_one_markdown))
-        except Exception as e:
-            logger.warning("Day-One synthesis failed: %s", e)
-            out.day_one_markdown = _synthesize_day_one_fallback(surveyor_result, hydrologist_result)
-    else:
-        out.day_one_markdown = _synthesize_day_one_fallback(surveyor_result, hydrologist_result)
+    # 4) Day-One synthesis (five answers, evidence citations)
+    out.day_one_markdown = answer_day_one_questions(
+        surveyor_result,
+        hydrologist_result,
+        llm_provider,
+        semanticist_result=out,
+        budget=budget,
+    )
 
     return out
 

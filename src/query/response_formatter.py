@@ -1,6 +1,7 @@
 """Format Navigator tool results for readable, evidence-rich output.
 
-Clearly separates graph-backed answers from semantic inference.
+Every answer cites evidence: source file (and line range when available),
+and analysis method (static analysis vs. LLM inference) for trust.
 """
 
 from __future__ import annotations
@@ -26,29 +27,29 @@ def format_implementation_matches(matches: list[ImplementationMatch]) -> str:
 
     if graph_matches:
         lines.append("")
-        lines.append("--- Graph-backed (from module/lineage graph) ---")
+        lines.append("--- Graph-backed (static analysis) ---")
         for m in graph_matches:
             line_range = f" lines {m.line_range[0]}-{m.line_range[1]}" if m.line_range else ""
             lines.append(f"  • {m.path}{line_range}")
-            lines.append(f"    Confidence: {m.confidence:.2f}  Provenance: {m.method_provenance}")
+            lines.append(f"    Evidence: source={m.path}, method=static analysis, confidence={m.confidence:.2f}  [{m.method_provenance}]")
 
     if semantic_matches:
         lines.append("")
-        lines.append("--- Semantic inference (from CODEBASE.md) ---")
+        lines.append("--- Semantic (LLM inference from CODEBASE.md) ---")
         for m in semantic_matches:
             line_range = f" lines {m.line_range[0]}-{m.line_range[1]}" if m.line_range else ""
             lines.append(f"  • {m.path}{line_range}")
-            lines.append(f"    Confidence: {m.confidence:.2f}  Provenance: {m.method_provenance}")
+            lines.append(f"    Evidence: source={m.path}, method=LLM inference, confidence={m.confidence:.2f}  [{m.method_provenance}]")
 
     return "\n".join(lines)
 
 
 def format_lineage_result(result: LineageResult) -> str:
-    """Format trace_lineage result with evidence."""
+    """Format trace_lineage result with evidence (source, method, confidence)."""
     lines = []
     lines.append(f"Lineage ({result.direction}) from: {result.start}")
     lines.append("")
-    lines.append("--- Graph-backed ---")
+    lines.append("--- Evidence: method=static analysis (lineage graph), source=lineage_graph.json ---")
     lines.append(result.evidence)
     lines.append("")
     lines.append(f"Nodes ({len(result.nodes)}):")
@@ -68,11 +69,11 @@ def format_lineage_result(result: LineageResult) -> str:
 
 
 def format_blast_radius_result(result: BlastRadiusResult) -> str:
-    """Format blast_radius result with evidence."""
+    """Format blast_radius result with evidence (source, method, confidence)."""
     lines = []
     lines.append(f"Blast radius from: {result.start}")
     lines.append("")
-    lines.append("--- Graph-backed ---")
+    lines.append("--- Evidence: method=static analysis (lineage graph), source=lineage_graph.json ---")
     lines.append(result.evidence)
     lines.append("")
     lines.append(f"Affected nodes ({len(result.affected)}):")
@@ -84,12 +85,12 @@ def format_blast_radius_result(result: BlastRadiusResult) -> str:
 
 
 def format_module_explanation(explanation: ModuleExplanation) -> str:
-    """Format explain_module with clear graph vs semantic sections."""
+    """Format explain_module with evidence: source file, line range, analysis method."""
     lines = []
     lines.append(f"Module: {explanation.path}")
     if explanation.line_range:
         lines.append(f"Line range: {explanation.line_range[0]}-{explanation.line_range[1]}")
-    lines.append(f"Confidence: {explanation.confidence:.2f}")
+    lines.append(f"Evidence: source={explanation.path}, method=static analysis (graph) + LLM inference (purpose), confidence={explanation.confidence:.2f}")
     lines.append("")
     lines.append("--- Graph-backed (structure) ---")
     lines.append(explanation.graph_section)

@@ -16,7 +16,7 @@ Add semantic understanding that static extraction cannot provide.
 - detect documentation drift
 - cluster modules into inferred domains
 - synthesize the five Day-One answers
-- manage token budgets and provider abstraction by using cheaper providers such as gemini-flash for bulk module summaries, and reserve the use of expensive providers such as gpt-4 for synthesis. these providers and api keys should be configured in .env file
+- manage token budgets and provider abstraction: use cheap models (Gemini Flash / Mistral via OpenRouter) for bulk module summaries and drift; reserve expensive models (DeepSeek / OpenAI) for synthesis only. Configure in `.env` (see `.env.example`): `OPENROUTER_API_KEY`, `CARTOGRAPHER_BULK_MODEL`, `CARTOGRAPHER_SYNTHESIS_MODEL`; optional `OPENAI_API_KEY` for embeddings.
 
 ## Requirements
 ### Purpose Statements

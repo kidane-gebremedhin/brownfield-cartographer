@@ -28,6 +28,14 @@ src/llm/budget.py
 src/llm/embeddings.py
 src/llm/prompts.py
 src/llm/provider.py
+src/llm/tiered_provider.py
+src/models/__init__.py
+src/models/artifacts.py
+src/models/common.py
+src/models/edges.py
+src/models/graph_models.py
+src/models/nodes.py
+src/models/trace.py
 src/query/__init__.py
 src/query/response_formatter.py
 src/query/tools.py

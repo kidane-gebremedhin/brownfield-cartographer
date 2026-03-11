@@ -38,7 +38,8 @@ class ArchivistInputs:
     repo_root: Path
     surveyor_result: Any  # SurveyorResult
     hydrologist_result: Any  # HydrologistResult
-    day_one_answers_markdown: str | None = None  # optional (Semanticist later)
+    day_one_answers_markdown: str | None = None  # optional (Semanticist)
+    semanticist_result: Any | None = None  # SemanticistResult: purpose_statements, drift, domains
     trace_events: list[dict[str, Any]] | None = None
 
 
@@ -56,7 +57,7 @@ def write_artifacts(inputs: ArchivistInputs, out_dir: Path | str | None = None) 
     _write_json(out / 'lineage_graph.json', lineage_graph)
 
     # Markdown artifacts
-    codebase_md = render_codebase_md(inputs)
+    codebase_md = generate_CODEBASE_md(inputs)
     onboarding_md = render_onboarding_brief(inputs)
 
     (out / 'CODEBASE.md').write_text(codebase_md, encoding='utf-8')
@@ -83,6 +84,11 @@ def write_artifacts(inputs: ArchivistInputs, out_dir: Path | str | None = None) 
     return out
 
 
+def generate_CODEBASE_md(inputs: ArchivistInputs) -> str:
+    """Generate the living context file (CODEBASE.md) for AI coding agents. Alias for render_codebase_md."""
+    return render_codebase_md(inputs)
+
+
 def render_codebase_md(inputs: ArchivistInputs) -> str:
     """Render CODEBASE.md with required sections."""
     s = inputs.surveyor_result
@@ -101,21 +107,27 @@ def render_codebase_md(inputs: ArchivistInputs) -> str:
     sources = [n for n in lg.nodes() if lg.in_degree(n) == 0]
     sinks = [n for n in lg.nodes() if lg.out_degree(n) == 0]
 
-    # Purpose index (placeholder until semanticist is integrated)
+    # Purpose index (from semanticist if available)
+    sem = inputs.semanticist_result
+    purpose_map = getattr(sem, 'purpose_statements', {}) if sem else {}
     module_purpose_lines = []
     for m in sorted(getattr(s, 'modules', {}).values(), key=lambda x: x.path):
-        module_purpose_lines.append(f"- `{m.path}`: (purpose pending)")
+        purpose = purpose_map.get(m.path, '(purpose pending)')
+        module_purpose_lines.append(f"- `{m.path}`: {purpose}")
 
     lines = []
     lines.append('# CODEBASE')
     lines.append('')
 
     lines.append('## Architecture Overview')
-    lines.append('- Generated from Surveyor (module graph) and Hydrologist (lineage graph).')
+    lines.append('This codebase is summarized from the Surveyor (module import graph and PageRank) and Hydrologist (data lineage graph). Critical path, sources/sinks, and known debt are derived from these graphs; purpose and drift come from the Semanticist when run.')
     lines.append('')
 
     lines.append('## Critical Path')
-    lines.append('- (pending: derived from graph centrality + semanticist synthesis)')
+    lines.append('Top 5 modules by PageRank (architectural hubs).')
+    pagerank = getattr(s, 'pagerank', {})
+    for path in sorted(pagerank.keys(), key=lambda p: -pagerank.get(p, 0))[:5]:
+        lines.append(f"- `{path}` (PageRank={pagerank.get(path, 0):.4f})")
     lines.append('')
 
     lines.append('## Data Sources & Sinks')
@@ -129,10 +141,23 @@ def render_codebase_md(inputs: ArchivistInputs) -> str:
     lines.append('')
 
     lines.append('## Known Debt')
-    lines.append('- (pending: dead code candidates, high complexity modules)')
+    sccs = getattr(s, 'sccs', [])
+    for i, comp in enumerate(sccs):
+        if len(comp) > 1:
+            lines.append(f"- **Circular dependency (SCC {i + 1})**: {', '.join(sorted(comp))}")
+    dead = [m.path for m in getattr(s, 'modules', {}).values() if getattr(m, 'is_dead_code_candidate', False)]
+    for p in sorted(dead):
+        lines.append(f"- **Dead-code candidate**: `{p}`")
+    drift_map = getattr(sem, 'drift', {}) if sem else {}
+    for path, label in sorted(drift_map.items()):
+        if label in ('stale', 'contradictory'):
+            lines.append(f"- **Documentation drift** (`{path}`): {label}")
+    if not sccs and not dead and not any(drift_map.get(p) in ('stale', 'contradictory') for p in drift_map):
+        lines.append('- No circular dependencies, dead-code candidates, or documentation drift identified.')
     lines.append('')
 
-    lines.append('## Recent Change Velocity')
+    lines.append('## High-Velocity Files (Recent Change Velocity)')
+    lines.append('Files changing most frequently (likely pain points).')
     for m in top_velocity:
         lines.append(f"- `{m.path}`: 30d={m.change_velocity_30d}, 90d={m.change_velocity_90d}")
     lines.append('')
@@ -178,8 +203,12 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding='utf-8')
 
 
-def _write_trace_jsonl(path: Path, events: list[dict[str, Any]]) -> None:
-    # deterministic ordering: write in provided order
+def _write_trace_jsonl(path: Path, events: list[dict[str, Any] | Any]) -> None:
+    """Write trace events (dict or CartographyTraceEntry) as JSONL."""
+    from models.trace import CartographyTraceEntry
     with path.open('w', encoding='utf-8') as f:
         for ev in events:
-            f.write(json.dumps(ev, sort_keys=True) + '\n')
+            if isinstance(ev, CartographyTraceEntry):
+                f.write(ev.model_dump_json(exclude_none=True) + '\n')
+            else:
+                f.write(json.dumps(ev, sort_keys=True) + '\n')

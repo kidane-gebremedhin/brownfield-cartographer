@@ -7,6 +7,19 @@
 ## Objective
 Define the typed knowledge graph used by all agents.
 
+## Files This Spec Owns
+
+This spec is responsible for implementing the entire typed schema layer.
+
+The following files MUST exist:
+
+src/models/common.py
+src/models/nodes.py
+src/models/edges.py
+src/models/graph_models.py
+src/models/artifacts.py
+src/models/trace.py
+
 ## Node Types
 
 ### ModuleNode
@@ -55,3 +68,48 @@ transformation_type: str
 source_file: str
 line_range: tuple[int, int] | None
 sql_query_if_applicable: str | None
+
+
+
+## Required Implementation
+
+All graph entities must be implemented as Pydantic models.
+
+The schema layer must include:
+
+Node types
+- ModuleNode
+- FunctionNode
+- DatasetNode
+- TransformationNode
+
+Edge types
+- IMPORTS
+- CALLS
+- CONSUMES
+- PRODUCES
+- CONFIGURES
+
+Graph models
+- ModuleGraph
+- DataLineageGraph
+
+Artifact models
+- CartographyArtifacts
+- CODEBASEContext
+- OnboardingBrief
+
+Trace models
+- CartographyTraceEntry
+- Evidence
+
+## Acceptance Criteria
+
+The following conditions must be satisfied:
+
+- `src/models/` directory exists
+- all schema files compile without import errors
+- all node and edge types are Pydantic models
+- graph models support JSON serialization
+- evidence metadata can attach to nodes and edges
+- models are reusable across agents

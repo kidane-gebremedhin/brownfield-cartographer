@@ -1,11 +1,15 @@
 """Provider-agnostic LLM completion interface.
 
 Implementations can wrap OpenAI, Gemini, or a mock for tests.
+Tiered model selection: use tier='bulk' (e.g. gemini-flash) for module summaries,
+tier='synthesis' (e.g. claude/gpt-4) for day-one synthesis.
 """
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import Literal, Protocol, runtime_checkable
+
+from llm.budget import ModelTier
 
 
 @runtime_checkable
@@ -18,9 +22,10 @@ class LLMProvider(Protocol):
         *,
         max_tokens: int = 1024,
         temperature: float = 0.2,
+        tier: ModelTier | None = None,
     ) -> str:
-        """Return completion for the given prompt. No streaming required."""
-        pass
+        """Return completion for the given prompt. tier: bulk (fast) vs synthesis (quality)."""
+        ...
 
 
 class MockLLMProvider:
@@ -41,6 +46,7 @@ class MockLLMProvider:
         *,
         max_tokens: int = 1024,
         temperature: float = 0.2,
+        tier: ModelTier | Literal[None] = None,
     ) -> str:
         self._call_count += 1
         if self.responses:

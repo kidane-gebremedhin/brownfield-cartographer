@@ -6,6 +6,7 @@ import networkx as nx
 
 from agents.semanticist import (
     extract_module_docstring,
+    generate_purpose_statement,
     run_semanticist,
 )
 from agents.surveyor import SurveyorModuleMetrics, SurveyorResult
@@ -39,6 +40,16 @@ def _fake_hydrologist_result() -> HydrologistResult:
     g.add_node("source_a", node_type="dataset")
     g.add_node("sink_b", node_type="dataset")
     return HydrologistResult(graph=g)
+
+
+def test_generate_purpose_statement_returns_purpose_and_drift():
+    """generate_purpose_statement returns (purpose, drift_label) and uses code not docstring."""
+    llm = MockLLMProvider(responses=["This module handles auth.", "aligned"])
+    source = '"""Old doc."""\ndef login(): pass\n'
+    purpose, drift = generate_purpose_statement("auth.py", source, llm)
+    assert isinstance(purpose, str)
+    assert len(purpose) > 0
+    assert drift in ("aligned", "stale", "contradictory", "insufficient")
 
 
 def test_extract_module_docstring_none():

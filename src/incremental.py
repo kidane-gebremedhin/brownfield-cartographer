@@ -2,8 +2,9 @@
 
 Persists a manifest of content hashes after each run. On the next run, compares
 current hashes to the manifest; if identical, artifacts are reused and no re-analysis
-is performed. If any file changed, added, or removed, the full pipeline is run and
-invalidation is logged to the trace.
+is performed. If any file changed, added, or removed, the full pipeline is re-run
+and invalidation is logged to cartography_trace.jsonl (added/removed/modified lists).
+Future work: re-analyze only changed files and merge with cached graphs to avoid full re-run.
 """
 
 from __future__ import annotations
@@ -104,31 +105,37 @@ def compute_changes(
     )
 
 
-def append_trace_event(artifact_dir: Path | str, event: dict) -> None:
+def append_trace_event(artifact_dir: Path | str, event: dict | "CartographyTraceEntry") -> None:
     """Append a single JSON object as one line to cartography_trace.jsonl."""
+    from models.trace import CartographyTraceEntry
     path = Path(artifact_dir).resolve() / "cartography_trace.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
-    line = json.dumps(event, sort_keys=True) + "\n"
+    if isinstance(event, CartographyTraceEntry):
+        line = event.model_dump_json(exclude_none=True) + "\n"
+    else:
+        line = json.dumps(event, sort_keys=True) + "\n"
     with path.open("a", encoding="utf-8") as f:
         f.write(line)
 
 
-def trace_event_for_reuse(change_set: ChangeSet, files_checked: int) -> dict:
+def trace_event_for_reuse(change_set: ChangeSet, files_checked: int) -> "CartographyTraceEntry":
     """Build trace event when artifacts are reused."""
-    return {
-        "event": "incremental_reuse",
-        "reason": change_set.reason,
-        "files_checked": files_checked,
-    }
+    from models.trace import CartographyTraceEntry
+    return CartographyTraceEntry(
+        event="incremental_reuse",
+        reason=change_set.reason,
+        files_checked=files_checked,
+    )
 
 
-def trace_event_for_invalidate(change_set: ChangeSet, files_checked: int) -> dict:
+def trace_event_for_invalidate(change_set: ChangeSet, files_checked: int) -> "CartographyTraceEntry":
     """Build trace event when analysis is invalidated and full run is performed."""
-    return {
-        "event": "incremental_invalidate",
-        "reason": change_set.reason,
-        "files_checked": files_checked,
-        "added": change_set.added,
-        "removed": change_set.removed,
-        "modified": change_set.modified,
-    }
+    from models.trace import CartographyTraceEntry
+    return CartographyTraceEntry(
+        event="incremental_invalidate",
+        reason=change_set.reason,
+        files_checked=files_checked,
+        added=change_set.added,
+        removed=change_set.removed,
+        modified=change_set.modified,
+    )

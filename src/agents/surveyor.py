@@ -23,6 +23,7 @@ from analyzers.language_router import get_language
 from analyzers.tree_sitter_analyzer import analyze_python_source
 from analyzers.git_velocity import change_velocity_30_90
 from repository.file_discovery import discover_files, DiscoveredFile
+from models.nodes import ModuleNode
 
 logger = logging.getLogger(__name__)
 
@@ -126,3 +127,76 @@ def _resolve_import_to_path(module: str, module_paths: set[str]) -> str | None:
         if c in module_paths:
             return c
     return None
+
+
+def high_velocity_core(
+    surveyor_result: SurveyorResult,
+    *,
+    top_fraction: float = 0.2,
+    contribution_target: float = 0.8,
+    use_30d: bool = True,
+) -> list[str]:
+    """Return the minimal set of module paths that account for ~contribution_target of total changes (80/20 core).
+
+    Sorts modules by change velocity descending, then takes the smallest set of paths
+    whose cumulative change count >= contribution_target * total. Typically this is
+    the "20% of files responsible for 80% of changes".
+    """
+    modules = list(surveyor_result.modules.values())
+    if not modules:
+        return []
+    total = sum(m.change_velocity_30d if use_30d else m.change_velocity_90d for m in modules)
+    if total <= 0:
+        return []
+    key = (lambda m: m.change_velocity_30d) if use_30d else (lambda m: m.change_velocity_90d)
+    sorted_modules = sorted(modules, key=key, reverse=True)
+    cum = 0
+    out: list[str] = []
+    threshold = contribution_target * total
+    for m in sorted_modules:
+        out.append(m.path)
+        cum += key(m)
+        if cum >= threshold:
+            break
+    return out
+
+
+def analyze_module(repo_root: Path | str, path: str) -> ModuleNode:
+    """Analyze a single module at path and return a ModuleNode (curriculum: structural + velocity).
+
+    Supports Python only for now (tree-sitter); other extensions get a minimal ModuleNode
+    with language from LanguageRouter and no structural extraction.
+    """
+    root = Path(repo_root).resolve()
+    full = root / path
+    if not full.is_file():
+        return ModuleNode(path=path, language=get_language(path), loc=0)
+
+    content = full.read_bytes()
+    lang = get_language(path)
+
+    if lang != "python":
+        v30, v90 = change_velocity_30_90(root, path)
+        return ModuleNode(
+            path=path,
+            language=lang,
+            loc=0,
+            change_velocity_30d=v30,
+            change_velocity_90d=v90,
+        )
+
+    facts = analyze_python_source(content, path=path)
+    v30, v90 = change_velocity_30_90(root, path)
+    public_api = [fn for fn in facts.functions if fn.is_public] + [
+        c for c in facts.classes if not c.name.startswith("_")
+    ]
+    return ModuleNode(
+        path=path,
+        language=lang,
+        complexity_score=facts.complexity_score,
+        change_velocity_30d=v30,
+        change_velocity_90d=v90,
+        is_dead_code_candidate=False,
+        loc=facts.loc,
+        public_api_count=len(public_api),
+    )
