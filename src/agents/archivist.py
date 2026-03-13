@@ -1,6 +1,6 @@
 """Archivist agent: generates durable artifacts for humans and AI agents.
 
-Artifacts written to .cartography/:
+Artifacts written to cartography/:
 - CODEBASE.md
 - onboarding_brief.md
 - module_graph.json
@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from graph.serializers import serialize_digraph
+from models.artifacts import DayOneAnswer, OnboardingBrief
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ class ArchivistInputs:
 def write_artifacts(inputs: ArchivistInputs, out_dir: Path | str | None = None) -> Path:
     """Write all archivist artifacts. Returns output directory path."""
     repo_root = Path(inputs.repo_root).resolve()
-    out = Path(out_dir) if out_dir is not None else repo_root / '.cartography'
+    out = Path(out_dir) if out_dir is not None else repo_root / 'cartography'
     out.mkdir(parents=True, exist_ok=True)
 
     # JSON graph artifacts
@@ -170,33 +171,69 @@ def render_codebase_md(inputs: ArchivistInputs) -> str:
 
 
 def render_onboarding_brief(inputs: ArchivistInputs) -> str:
-    """Render onboarding_brief.md with required sections."""
-    lines = []
-    lines.append('# Onboarding Brief')
-    lines.append('')
+    """Render onboarding_brief.md with required sections and explicit evidence citations."""
+    sem = inputs.semanticist_result
+    structured_answers: list[DayOneAnswer] = getattr(sem, "day_one_answers", []) if sem else []
 
-    lines.append('## Day-One Answers')
-    if inputs.day_one_answers_markdown:
+    lines: list[str] = []
+    lines.append("# Onboarding Brief")
+    lines.append("")
+
+    lines.append("## Day-One Answers")
+    if structured_answers:
+        for ans in sorted(structured_answers, key=lambda a: a.question_id):
+            lines.append(f"### {ans.question_id}. {ans.title}")
+            lines.append(ans.answer_markdown.strip())
+            lines.append(
+                f"_Confidence: {ans.confidence:.2f} via {ans.method}_"
+            )
+            lines.append("")
+    elif inputs.day_one_answers_markdown:
         lines.append(inputs.day_one_answers_markdown.strip())
+        lines.append("")
     else:
-        lines.append('- (pending: semanticist synthesis)')
-    lines.append('')
+        lines.append("- (pending: semanticist synthesis)")
+        lines.append("")
 
-    lines.append('## Evidence citations')
-    lines.append('- Module graph: `.cartography/module_graph.json`')
-    lines.append('- Lineage graph: `.cartography/lineage_graph.json`')
-    lines.append('')
+    lines.append("## Evidence citations")
+    if structured_answers:
+        for ans in sorted(structured_answers, key=lambda a: a.question_id):
+            lines.append(f"- Q{ans.question_id} {ans.title}")
+            if ans.evidence:
+                for ev in ans.evidence:
+                    if ev.file_path and ev.line_start is not None and ev.line_end is not None:
+                        loc = f"`{ev.file_path}:{ev.line_start}-{ev.line_end}`"
+                    elif ev.file_path:
+                        loc = f"`{ev.file_path}`"
+                    else:
+                        loc = ev.source
+                    note_bits = []
+                    if ev.analysis_method:
+                        note_bits.append(ev.analysis_method)
+                    if ev.notes:
+                        note_bits.append(ev.notes)
+                    note_str = " - " + "; ".join(note_bits) if note_bits else ""
+                    lines.append(f"  - {loc}{note_str}")
+            else:
+                lines.append("  - (no structured evidence captured)")
+    else:
+        lines.append("- Module graph: `cartography/module_graph.json`")
+        lines.append("- Lineage graph: `cartography/lineage_graph.json`")
+    lines.append("")
 
-    lines.append('## Confidence notes')
-    lines.append('- Static extraction is conservative; dynamic refs are recorded as unresolved.')
-    lines.append('')
+    lines.append("## Confidence notes")
+    if structured_answers:
+        avg_conf = sum(a.confidence for a in structured_answers) / max(len(structured_answers), 1)
+        lines.append(f"- Overall Day-One confidence (static/graph-based): {avg_conf:.2f}")
+    lines.append("- Static extraction is conservative; dynamic refs are recorded as unresolved.")
+    lines.append("")
 
-    lines.append('## Known unknowns')
-    lines.append('- Business logic semantics pending semanticist.')
-    lines.append('- Runtime-only dataset names may appear as `<dynamic>` / `<sql_query>` / `<spark_read>` etc.')
-    lines.append('')
+    lines.append("## Known unknowns")
+    lines.append("- Business logic semantics may still be incomplete despite static analysis.")
+    lines.append("- Runtime-only dataset names may appear as `<dynamic>` / `<sql_query>` / `<spark_read>` etc.")
+    lines.append("")
 
-    return '\n'.join(lines)
+    return "\n".join(lines)
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:

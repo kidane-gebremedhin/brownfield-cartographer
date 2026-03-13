@@ -24,7 +24,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Literal
 
-from agents.hydrologist import blast_radius, find_sources, find_sinks
+from agents.hydrologist import blast_radius, find_sources, find_sinks, trace_lineage
+from models.artifacts import DayOneAnswer
+from models.common import Evidence
 from llm.budget import ContextWindowBudget, TokenBudget, estimate_tokens
 from llm.embeddings import EmbeddingsProvider
 from llm.prompts import (
@@ -190,8 +192,9 @@ def _format_primary_ingestion_answer(ing: Any) -> str:
         parts.append("Raw data lands in " + ing.raw_schema_hint + ".")
     if ing.orchestrator:
         parts.append(ing.orchestrator + " triggers ingestion and pipeline jobs.")
-    if ing.config_paths:
-        parts.append("Config and pipeline definitions: " + ", ".join(ing.config_paths[:6]) + ".")
+    paths_to_show = getattr(ing, "entry_point_paths", None) or ing.config_paths
+    if paths_to_show:
+        parts.append("Entry points: " + ", ".join(paths_to_show[:10]) + ".")
     if not parts:
         return ""
     return " ".join(parts)
@@ -218,40 +221,31 @@ def answer_day_one_questions(
     repo_root: Path | str | None = None,
     semanticist_result: Any = None,
     budget: TokenBudget | ContextWindowBudget | None = None,
-) -> str:
-    """Synthesis prompt with full Surveyor + Hydrologist (and optional Semanticist) output; returns markdown with evidence citations (file paths and line numbers)."""
-    context = _build_day_one_context(
-        surveyor_result, hydrologist_result, semanticist_result or SemanticistResult(), repo_root=repo_root
-    )
-    prompt = render_day_one(context)
-    in_tok, out_tok = _est_tokens(prompt), 800
-    if budget is not None and hasattr(budget, "can_afford") and not budget.can_afford(in_tok, out_tok):
-        out = _synthesize_day_one_fallback(
-            surveyor_result, hydrologist_result, repo_root=repo_root
-        )
-    else:
-        try:
-            out = llm_provider.complete(prompt, max_tokens=800, temperature=0.3, tier="synthesis")
-            if budget is not None:
-                if hasattr(budget, "record_usage"):
-                    budget.record_usage(in_tok, _est_tokens(out))
-                else:
-                    budget.add(in_tok, _est_tokens(out))
-        except Exception as e:
-            logger.warning("Day-One synthesis failed: %s", e)
-            out = _synthesize_day_one_fallback(
-                surveyor_result, hydrologist_result, repo_root=repo_root
-            )
+) -> tuple[list[DayOneAnswer], str]:
+    """Build structured Day-One answers (with evidence) and render markdown.
 
-    # Force Primary ingestion path from detector when we have hints (so it's never dbt-lineage-only)
+    This implementation is deterministic and does not rely on the LLM. The llm_provider and
+    budget parameters are accepted for API compatibility but are not used here.
+    """
+    sem_res = semanticist_result or SemanticistResult()
+    answers = _build_structured_day_one_answers(
+        surveyor_result=surveyor_result,
+        hydrologist_result=hydrologist_result,
+        sem_result=sem_res,
+        repo_root=repo_root,
+    )
+    markdown = _render_day_one_markdown_from_answers(answers)
+
+    # Preserve the ingestion-detector override for answer 1 wording when we have hints.
     if repo_root:
         from analyzers.ingestion_detector import detect_ingestion
+
         ing = detect_ingestion(Path(repo_root).resolve())
         if ing.orchestrator or ing.ingestion_tools or ing.config_paths:
             new_answer = _format_primary_ingestion_answer(ing)
             if new_answer:
-                out = _replace_day_one_answer_1(out, new_answer)
-    return out
+                markdown = _replace_day_one_answer_1(markdown, new_answer)
+    return answers, markdown
 
 
 @dataclass
@@ -262,6 +256,246 @@ class SemanticistResult:
     drift: dict[str, DriftLabel] = field(default_factory=dict)
     domains: list[dict[str, Any]] = field(default_factory=list)  # [{ "label": str, "modules": [path, ...] }]
     day_one_markdown: str = ""
+    day_one_answers: list[DayOneAnswer] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class CriticalNodeScore:
+    """Scored candidate for 'most critical' internal lineage node."""
+
+    node_id: str
+    score: float
+    downstream_reach: int
+    upstream_reach: int
+    degree: int
+    pagerank: float
+    bonus_tags: list[str]
+
+
+def score_critical_candidates(graph: Any, surveyor_result: Any) -> list[CriticalNodeScore]:
+    """Rank non-empty, internal lineage nodes by structural importance.
+
+    Excludes:
+    - empty / whitespace-only node ids
+    - unresolved placeholder nodes (node_type='unresolved')
+    - pure terminal sinks (no outgoing edges and not a transformation)
+    """
+    if graph is None:
+        return []
+
+    pr_map: dict[str, float] = getattr(surveyor_result, "pagerank", {}) or {}
+
+    def _pagerank_for_node(node_id: str) -> float:
+        if node_id in pr_map:
+            return float(pr_map[node_id])
+        # Transformation ids often look like "py:path" or "sql:path"
+        if ":" in node_id:
+            _, path = node_id.split(":", 1)
+            return float(pr_map.get(path, 0.0))
+        return 0.0
+
+    results: list[CriticalNodeScore] = []
+
+    for node_id in graph.nodes():
+        # We only reason about string-like node ids
+        if not isinstance(node_id, str):
+            continue
+        if not node_id.strip():
+            continue
+
+        attrs = graph.nodes[node_id] or {}
+        node_type = attrs.get("node_type")
+
+        # Skip unresolved placeholder nodes
+        if node_type == "unresolved":
+            continue
+
+        in_deg = graph.in_degree(node_id)
+        out_deg = graph.out_degree(node_id)
+
+        # Skip isolated points
+        if in_deg == 0 and out_deg == 0:
+            continue
+
+        # Exclude pure terminal sinks (no outgoing edges and not a transformation)
+        if out_deg == 0 and node_type != "transformation":
+            continue
+
+        # Reachability within bounded depth for determinism and performance
+        downstream_nodes = blast_radius(graph, node_id, max_depth=5)
+        downstream_reach = max(0, len(downstream_nodes) - 1)
+
+        upstream_nodes = trace_lineage(graph, node_id, direction="upstream", max_depth=5)
+        upstream_reach = max(0, len(upstream_nodes) - 1)
+
+        degree = int(in_deg + out_deg)
+        pr_value = _pagerank_for_node(node_id)
+
+        bonus_tags: list[str] = []
+        nid_lower = node_id.lower()
+        if "marts/" in nid_lower or "marts." in nid_lower:
+            bonus_tags.append("marts")
+        if "reporting/" in nid_lower or "reporting." in nid_lower:
+            bonus_tags.append("reporting")
+        if "intermediate/" in nid_lower or "intermediate." in nid_lower:
+            bonus_tags.append("intermediate")
+
+        orchestrator_keywords = ("dagster", "airflow", "orchestrate", "prefect", "scheduler")
+        if any(k in nid_lower for k in orchestrator_keywords):
+            bonus_tags.append("orchestrator")
+
+        # Weighted score components
+        score = (
+            2.0 * downstream_reach
+            + 1.5 * upstream_reach
+            + degree
+            + 50.0 * pr_value
+            + 5.0 * len(bonus_tags)
+        )
+
+        results.append(
+            CriticalNodeScore(
+                node_id=node_id,
+                score=score,
+                downstream_reach=downstream_reach,
+                upstream_reach=upstream_reach,
+                degree=degree,
+                pagerank=pr_value,
+                bonus_tags=bonus_tags,
+            )
+        )
+
+    # Deterministic ordering: score desc, then node id asc
+    return sorted(results, key=lambda c: (-c.score, c.node_id))
+
+
+def analyze_business_logic_distribution(surveyor_result: Any, hydrologist_result: Any) -> dict[str, Any]:
+    """Compute where business logic is concentrated vs distributed across directories and layers."""
+    s = surveyor_result
+    h = hydrologist_result
+    g = getattr(h, "graph", None)
+    modules = getattr(s, "modules", {}) or {}
+    pagerank = getattr(s, "pagerank", {}) or {}
+
+    from collections import Counter, defaultdict
+
+    dir_module_counts: Counter[str] = Counter()
+    dir_pagerank: Counter[str] = Counter()
+    dir_transformations: Counter[str] = Counter()
+
+    layer_prefixes = {
+        "staging": ("staging/", "staging."),
+        "intermediate": ("intermediate/", "intermediate."),
+        "marts": ("marts/", "marts."),
+        "reporting": ("reporting/", "reporting."),
+        "dg_deployments": ("dg_deployments/",),
+        "dg_projects": ("dg_projects/",),
+        "packages": ("packages/",),
+    }
+    layer_stats: dict[str, dict[str, float]] = defaultdict(
+        lambda: {"modules": 0.0, "pagerank": 0.0, "transformations": 0.0}
+    )
+
+    for path, _metrics in modules.items():
+        if not isinstance(path, str):
+            continue
+        parts = path.split("/")
+        d = "/".join(parts[:-1]) if len(parts) > 1 else "."
+        dir_module_counts[d] += 1
+        pr_val = float(pagerank.get(path, 0.0))
+        dir_pagerank[d] += pr_val
+        for layer, prefixes in layer_prefixes.items():
+            if any(path.startswith(p) for p in prefixes):
+                layer_stats[layer]["modules"] += 1
+                layer_stats[layer]["pagerank"] += pr_val
+
+    if g is not None:
+        for _u, _v, attrs in g.edges(data=True):
+            sf = attrs.get("source_file")
+            if not sf:
+                continue
+            parts = sf.split("/")
+            d = "/".join(parts[:-1]) if len(parts) > 1 else "."
+            dir_transformations[d] += 1
+            for layer, prefixes in layer_prefixes.items():
+                if any(sf.startswith(p) for p in prefixes):
+                    layer_stats[layer]["transformations"] += 1
+
+    dir_module_top = dir_module_counts.most_common(6)
+    dir_pagerank_top = dir_pagerank.most_common(6)
+    dir_transform_top = dir_transformations.most_common(6)
+
+    concentration_notes: list[str] = []
+    if dir_pagerank_top:
+        top_dir, top_pr = dir_pagerank_top[0]
+        total_pr = sum(v for _, v in dir_pagerank_top) or 1.0
+        ratio = top_pr / total_pr
+        if ratio > 0.6:
+            concentration_notes.append(
+                f"Business logic is highly centralized in `{top_dir}` (≈{ratio:.0%} of PageRank among top directories)."
+            )
+        elif ratio > 0.3:
+            concentration_notes.append(
+                f"Business logic is moderately concentrated in `{top_dir}`, with meaningful activity elsewhere."
+            )
+        else:
+            concentration_notes.append(
+                "Business logic appears fairly distributed across multiple directories."
+            )
+
+    if g is not None:
+        total_edges = g.number_of_edges() or 1
+        for layer, stats in layer_stats.items():
+            if stats["transformations"] > 0:
+                frac = stats["transformations"] / total_edges
+                concentration_notes.append(
+                    f"Layer `{layer}` accounts for ≈{frac:.0%} of lineage transformations."
+                )
+
+    return {
+        "dir_module_counts": dir_module_top,
+        "dir_pagerank": dir_pagerank_top,
+        "dir_transformations": dir_transform_top,
+        "layer_counts": layer_stats,
+        "concentration_notes": concentration_notes,
+    }
+
+
+def _score_critical_output_node(node_id: str, attrs: dict[str, Any]) -> float:
+    """Score a sink node as a candidate critical output."""
+    nid = node_id.lower()
+    score = 0.0
+    if "marts" in nid or "mart" in nid:
+        score += 3.0
+    if "reporting" in nid:
+        score += 3.0
+    if "analytics" in nid:
+        score += 2.0
+    if "superset" in nid or "dashboard" in nid or "bi_" in nid:
+        score += 2.0
+    if "raw__" in nid or "raw_" in nid:
+        score -= 4.0
+    if "source(" in nid or attrs.get("node_type") == "source":
+        score -= 3.0
+    return score
+
+
+def select_critical_outputs(graph: Any, max_outputs: int = 5) -> list[str]:
+    """Select 3–5 critical outputs/endpoints (analytics/reporting/BI-facing)."""
+    if graph is None:
+        return []
+    sinks = find_sinks(graph)
+    scored: list[tuple[float, str]] = []
+    for n in sinks:
+        attrs = graph.nodes.get(n, {}) if hasattr(graph, "nodes") else {}
+        s = _score_critical_output_node(n, attrs)
+        scored.append((s, n))
+    # prefer higher score; break ties alphabetically
+    scored.sort(key=lambda x: (-x[0], x[1]))
+    # filter out heavily penalized raw/source-only sinks when possible
+    positive = [n for s, n in scored if s > 0]
+    chosen = positive[:max_outputs] if positive else [n for _s, n in scored[:max_outputs]]
+    return chosen
 
 
 def run_semanticist(
@@ -389,7 +623,7 @@ def run_semanticist(
         )
 
     # 4) Day-One synthesis (five answers, evidence citations)
-    out.day_one_markdown = answer_day_one_questions(
+    answers, markdown = answer_day_one_questions(
         surveyor_result,
         hydrologist_result,
         llm_provider,
@@ -397,6 +631,8 @@ def run_semanticist(
         semanticist_result=out,
         budget=budget,
     )
+    out.day_one_answers = answers
+    out.day_one_markdown = markdown
 
     return out
 
@@ -506,24 +742,71 @@ def _build_day_one_context(
         lines.append("Module purposes (sample): " + "; ".join(f"{p}: {t[:80]}" for p, t in list(sem_result.purpose_statements.items())[:12]))
     if sem_result.domains:
         lines.append("Inferred business domains: " + ", ".join(d.get("label", "") for d in sem_result.domains))
+
+    # Structural critical node summary (for human context; independent of LLM)
+    if g is not None:
+        scored = score_critical_candidates(g, s)
+        if scored:
+            top = scored[0]
+            impact_nodes = blast_radius(g, top.node_id, max_depth=5)
+            impact_nodes.discard(top.node_id)
+            evidence_bits: list[str] = [
+                f"upstream_reach={top.upstream_reach}",
+                f"downstream_reach={top.downstream_reach}",
+                f"degree={top.degree}",
+            ]
+            if top.pagerank > 0:
+                evidence_bits.append(f"pagerank={top.pagerank:.3f}")
+            if top.bonus_tags:
+                evidence_bits.append("tags=" + ",".join(sorted(top.bonus_tags)))
+            lines.append(
+                "Critical internal lineage node: "
+                f"{top.node_id} "
+                f"(blast radius: {len(impact_nodes)} nodes; "
+                + ", ".join(evidence_bits)
+                + ")."
+            )
+
     return "\n".join(lines)
 
 
 def _synthesize_day_one_fallback(
     surveyor_result: Any, hydrologist_result: Any, *, repo_root: Path | str | None = None
 ) -> str:
-    """Fallback Day-One text when LLM is not used or fails; use actual Surveyor/Hydrologist data when available."""
+    """Fallback Day-One text when LLM is not used or fails; uses structured answers."""
+    answers = _build_structured_day_one_answers(
+        surveyor_result=surveyor_result,
+        hydrologist_result=hydrologist_result,
+        sem_result=SemanticistResult(),
+        repo_root=repo_root,
+    )
+    return _render_day_one_markdown_from_answers(answers)
+
+
+def _build_structured_day_one_answers(
+    surveyor_result: Any,
+    hydrologist_result: Any,
+    sem_result: SemanticistResult,
+    *,
+    repo_root: Path | str | None = None,
+) -> list[DayOneAnswer]:
+    """Build five Day-One answers backed by static analysis and graph traversal."""
+    from analyzers.git_velocity import top_changed_files_all
+    from analyzers.ingestion_detector import detect_ingestion
+
     s = surveyor_result
     h = hydrologist_result
     g = getattr(h, "graph", None)
     mods = getattr(s, "modules", {}) or {}
 
-    # 1. Primary ingestion path (real ingestion: external → warehouse, not dbt upstream)
-    ingestion = "(No ingestion context.)"
+    answers: list[DayOneAnswer] = []
+
+    # 1. Primary ingestion path (external -> warehouse)
+    ingestion_text = "(No ingestion context.)"
+    ingestion_evidence: list[Evidence] = []
     if repo_root:
-        from pathlib import Path
-        from analyzers.ingestion_detector import detect_ingestion
-        ing = detect_ingestion(Path(repo_root).resolve())
+        root = Path(repo_root).resolve()
+        ing = detect_ingestion(root)
         parts = []
         if ing.ingestion_tools:
             parts.append("Data is moved into the warehouse via " + " and ".join(ing.ingestion_tools) + ".")
@@ -533,54 +816,299 @@ def _synthesize_day_one_fallback(
             parts.append("Config at: " + ", ".join(ing.config_paths[:5]))
         if ing.raw_schema_hint:
             parts.append("Raw data lands in " + ing.raw_schema_hint + ".")
+        # Map ingestion detector evidence into structured Evidence objects
+        for iev in getattr(ing, "evidence", [])[:50]:
+            ingestion_evidence.append(
+                Evidence(
+                    source="ingestion_detector",
+                    file_path=iev.file_path,
+                    line_start=iev.line,
+                    line_end=iev.line,
+                    analysis_method="static_analysis",
+                    notes=f"{iev.category} match: {iev.keyword}",
+                )
+            )
         if parts:
-            ingestion = " ".join(parts)
+            ingestion_text = " ".join(parts)
         elif g is not None:
             sources = find_sources(g)
-            ingestion = "Ingestion tooling not detected. Lineage source nodes (dbt/transform inputs): " + (", ".join(sorted(sources)[:8]) if sources else "(none)")
+            ingestion_text = "Ingestion tooling not detected. Lineage source nodes (dbt/transform inputs): " + (
+                ", ".join(sorted(sources)[:8]) if sources else "(none)"
+            )
+            for src in sorted(list(sources))[:8]:
+                for u, v, attrs in g.out_edges(src, data=True):
+                    sf = attrs.get("source_file")
+                    ls, le = attrs.get("line_start"), attrs.get("line_end")
+                    if sf and ls is not None and le is not None:
+                        ingestion_evidence.append(
+                            Evidence(
+                                source="hydrologist",
+                                file_path=sf,
+                                line_start=ls,
+                                line_end=le,
+                                analysis_method="graph_traversal",
+                                notes=f"Source dataset {src} feeding {v}",
+                            )
+                        )
     elif g is not None:
         sources = find_sources(g)
-        ingestion = ", ".join(sorted(sources)[:10]) if sources else "(No source nodes.)"
+        ingestion_text = ", ".join(sorted(sources)[:10]) if sources else "(No source nodes.)"
 
-    # 2. Critical outputs/endpoints
-    endpoints = "(No lineage graph.)"
+    answers.append(
+        DayOneAnswer(
+            question_id=1,
+            title="Primary ingestion path",
+            answer_markdown=ingestion_text,
+            confidence=0.8,
+            method="mixed" if ingestion_evidence else "static_analysis",
+            evidence=ingestion_evidence,
+        )
+    )
+
+    # 2. Critical outputs/endpoints (prefer marts/reporting/analytics/BI)
+    endpoints_text = "(No lineage graph.)"
+    endpoints_evidence: list[Evidence] = []
     if g is not None:
-        sinks = find_sinks(g)
-        endpoints = ", ".join(sorted(sinks)[:10]) if sinks else "(No sink nodes.)"
+        critical_nodes = select_critical_outputs(g, max_outputs=5)
+        if critical_nodes:
+            endpoints_text = ", ".join(critical_nodes)
+            for sink in critical_nodes:
+                for u, v, attrs in g.in_edges(sink, data=True):
+                    sf = attrs.get("source_file")
+                    ls, le = attrs.get("line_start"), attrs.get("line_end")
+                    if sf and ls is not None and le is not None:
+                        endpoints_evidence.append(
+                            Evidence(
+                                source="hydrologist",
+                                file_path=sf,
+                                line_start=ls,
+                                line_end=le,
+                                analysis_method="graph_traversal",
+                                notes=f"Transformation edge {u} -> {v}",
+                            )
+                        )
+        else:
+            endpoints_text = "(No sink nodes.)"
 
-    # 3. Blast radius
-    blast = "(No lineage graph.)"
+    answers.append(
+        DayOneAnswer(
+            question_id=2,
+            title="Critical outputs/endpoints",
+            answer_markdown=endpoints_text,
+            confidence=0.8 if g is not None else 0.3,
+            method="graph_traversal" if g is not None else "static_analysis",
+            evidence=endpoints_evidence,
+        )
+    )
+
+    # 3. Blast radius of critical module/transformation
+    blast_text = "(No lineage graph.)"
+    blast_evidence: list[Evidence] = []
     if g is not None:
-        sinks = find_sinks(g)
-        if sinks:
-            critical = next(iter(sorted(sinks)))
-            radius = blast_radius(g, critical, max_depth=5)
-            blast = f"Downstream of '{critical}': {len(radius)} nodes affected."
+        scored = score_critical_candidates(g, s)
+        if scored:
+            top = scored[0]
+            radius = blast_radius(g, top.node_id, max_depth=5)
+            impact_nodes = set(radius)
+            impact_nodes.discard(top.node_id)
 
-    # 4. Business logic concentrated vs distributed
-    concentration = "(No module graph.)"
-    if getattr(s, "pagerank", None):
-        pr = s.pagerank
-        top = sorted(pr.items(), key=lambda x: -x[1])[:3]
-        concentration = "Top modules by PageRank: " + ", ".join(f"{p}({v:.3f})" for p, v in top)
+            # classify downstream impacts
+            downstream_sinks = {n for n in impact_nodes if g.out_degree(n) == 0}
+            reporting_like = {n for n in downstream_sinks if "reporting" in str(n).lower() or "mart" in str(n).lower()}
 
-    # 5. Git velocity hotspots (raw git + among modules)
-    velocity_parts: list[str] = []
+            blast_lines = [
+                f"Critical module or transformation: `{top.node_id}`.",
+                f"Downstream blast radius (excluding the node itself): {len(impact_nodes)} nodes.",
+                f"Affected output datasets: {len(downstream_sinks)} sinks.",
+            ]
+            if reporting_like:
+                blast_lines.append(f"Impacted reporting/analytics layers include: {', '.join(sorted(list(reporting_like))[:8])}.")
+            blast_text = "\n".join(blast_lines)
+
+            for u, v, attrs in g.edges(data=True):
+                if u == top.node_id or (u in impact_nodes and v in impact_nodes):
+                    sf = attrs.get("source_file")
+                    ls, le = attrs.get("line_start"), attrs.get("line_end")
+                    if sf and ls is not None and le is not None:
+                        blast_evidence.append(
+                            Evidence(
+                                source="hydrologist",
+                                file_path=sf,
+                                line_start=ls,
+                                line_end=le,
+                                analysis_method="graph_traversal",
+                                notes=f"Blast-radius edge {u} -> {v}",
+                            )
+                        )
+        else:
+            sinks = find_sinks(g)
+            if sinks:
+                critical = next(iter(sorted(sinks)))
+                radius = blast_radius(g, critical, max_depth=5)
+                impact_nodes = set(radius)
+                impact_nodes.discard(critical)
+                blast_text = (
+                    f"Sink-only graph; using terminal node '{critical}'. "
+                    f"Downstream blast radius (excluding the node itself): {len(impact_nodes)} nodes."
+                )
+
+    answers.append(
+        DayOneAnswer(
+            question_id=3,
+            title="Blast radius of critical module",
+            answer_markdown=blast_text,
+            confidence=0.8 if g is not None else 0.3,
+            method="graph_traversal" if g is not None else "static_analysis",
+            evidence=blast_evidence,
+        )
+    )
+
+    # 4. Business logic concentrated vs distributed (directories, layers, lineage)
+    concentration_text = "(No module graph.)"
+    concentration_evidence: list[Evidence] = []
+    if getattr(s, "modules", None):
+        dist = analyze_business_logic_distribution(s, h)
+        lines: list[str] = []
+
+        dir_mod = dist.get("dir_module_counts") or []
+        dir_pr = dist.get("dir_pagerank") or []
+        dir_tr = dist.get("dir_transformations") or []
+        layer_counts = dist.get("layer_counts") or {}
+        notes = dist.get("concentration_notes") or []
+
+        if dir_mod:
+            lines.append("Top directories by module count:")
+            for d, c in dir_mod:
+                lines.append(f"- `{d}`: {c} modules")
+                concentration_evidence.append(
+                    Evidence(
+                        source="surveyor",
+                        file_path=d,
+                        analysis_method="static_analysis",
+                        notes=f"{c} modules under {d}",
+                    )
+                )
+
+        if dir_pr:
+            lines.append("Top directories by PageRank-weighted importance:")
+            for d, pr_val in dir_pr:
+                lines.append(f"- `{d}`: total PageRank ≈ {pr_val:.3f}")
+
+        if dir_tr:
+            lines.append("Top directories by lineage transformations:")
+            for d, c in dir_tr:
+                lines.append(f"- `{d}`: {c} transformation edges")
+
+        if layer_counts:
+            lines.append("Path-based layers (staging/intermediate/marts/reporting/dg_*/packages):")
+            for layer, stats in layer_counts.items():
+                if stats["modules"] or stats["transformations"]:
+                    lines.append(
+                        f"- `{layer}`: modules={int(stats['modules'])}, "
+                        f"transformations={int(stats['transformations'])}, "
+                        f"PageRank≈{stats['pagerank']:.3f}"
+                    )
+
+        for note in notes:
+            lines.append(note)
+
+        if lines:
+            concentration_text = "\n".join(lines)
+
+    answers.append(
+        DayOneAnswer(
+            question_id=4,
+            title="Business logic concentrated vs distributed",
+            answer_markdown=concentration_text,
+            confidence=0.8 if getattr(s, "modules", None) else 0.4,
+            method="static_analysis",
+            evidence=concentration_evidence,
+        )
+    )
+
+    # 5. Git velocity hotspots (raw git + among modules) over 90 days
+    from analyzers.git_velocity import build_git_velocity_map
+
+    velocity_lines: list[str] = []
+    velocity_evidence: list[Evidence] = []
+    window_days = 90
+
     if repo_root:
-        from pathlib import Path
-        from analyzers.git_velocity import top_changed_files_all
-        raw_top = top_changed_files_all(Path(repo_root).resolve(), days=30, top_n=5)
-        if raw_top:
-            velocity_parts.append("Raw git (source files, 30d): " + ", ".join(f"{p}({n})" for p, n in raw_top))
-    if mods:
-        hot = sorted(mods.values(), key=lambda m: getattr(m, "change_velocity_30d", 0), reverse=True)[:5]
-        velocity_parts.append("Among source modules (30d): " + ", ".join(getattr(m, "path", "") for m in hot))
-    velocity = "; ".join(velocity_parts) if velocity_parts else "(No git data.)"
+        root = Path(repo_root).resolve()
+        vmap = build_git_velocity_map(root, days=window_days)
+        files = vmap.get("files", [])
+        dirs = vmap.get("directories", [])
+        prefixes = vmap.get("prefixes", [])
 
-    return "\n\n".join([
-        f"1. Primary ingestion path\n{ingestion}",
-        f"2. Critical outputs/endpoints\n{endpoints}",
-        f"3. Blast radius of critical module\n{blast}",
-        f"4. Business logic concentrated vs distributed\n{concentration}",
-        f"5. Git velocity hotspots\n{velocity}",
-    ])
+        if files:
+            velocity_lines.append(
+                f"Top changed files in the last {window_days} days:"
+            )
+            for path, count in files:
+                velocity_lines.append(f"- `{path}`: {count} commits")
+                velocity_evidence.append(
+                    Evidence(
+                        source="git_velocity",
+                        file_path=path,
+                        analysis_method="static_analysis",
+                        notes=f"{count} commits in last {window_days} days",
+                    )
+                )
+
+        if dirs:
+            velocity_lines.append(
+                f"Top changed directories in the last {window_days} days:"
+            )
+            for d, count in dirs:
+                velocity_lines.append(f"- `{d}/`: {count} commits (aggregated)")
+
+        if prefixes:
+            velocity_lines.append(
+                f"Top changed subsystems in the last {window_days} days:"
+            )
+            for prefix, count in prefixes:
+                velocity_lines.append(f"- `{prefix}`: {count} commits (aggregated)")
+
+    if mods:
+        hot = sorted(
+            mods.values(), key=lambda m: getattr(m, "change_velocity_90d", 0), reverse=True
+        )[:5]
+        if hot:
+            velocity_lines.append(
+                f"Among source modules (90d change_velocity_90d): "
+                + ", ".join(getattr(m, "path", "") for m in hot)
+            )
+            for m in hot:
+                velocity_evidence.append(
+                    Evidence(
+                        source="git_velocity",
+                        file_path=getattr(m, "path", ""),
+                        analysis_method="static_analysis",
+                        notes=f"Module change velocity 90d={getattr(m, 'change_velocity_90d', 0)}",
+                    )
+                )
+
+    velocity_text = "\n".join(velocity_lines) if velocity_lines else "(No git data.)"
+
+    answers.append(
+        DayOneAnswer(
+            question_id=5,
+            title="Git velocity hotspots (last 90 days)",
+            answer_markdown=velocity_text,
+            confidence=0.8 if velocity_lines else 0.4,
+            method="static_analysis",
+            evidence=velocity_evidence,
+        )
+    )
+
+    return answers
+
+
+def _render_day_one_markdown_from_answers(answers: list[DayOneAnswer]) -> str:
+    """Render legacy Day-One markdown from structured answers."""
+    by_q = {a.question_id: a for a in answers}
+    sections = []
+    for q in sorted(by_q.keys()):
+        a = by_q[q]
+        sections.append(f"{q}. {a.title}\n{a.answer_markdown}")
+    return "\n\n".join(sections)

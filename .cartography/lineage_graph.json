@@ -12405,8 +12405,8 @@
       "attrs": {
         "edge_type": "produces",
         "evidence": "conn.execute(\"SELECT column_name FROM information_schema.columns\\n            WHERE table_name = 'tracking_logs'\\n            \")",
-        "line_end": 591,
-        "line_start": 587,
+        "line_end": 597,
+        "line_start": 593,
         "source_file": "dg_projects/edxorg/edxorg/assets/edxorg_archive.py",
         "transformation_type": "python_sqlalchemy"
       },
@@ -25207,6 +25207,18 @@
       "attrs": {
         "node_type": "transformation"
       },
+      "id": "py:src/ol_superset/ol_superset/commands/impact.py"
+    },
+    {
+      "attrs": {
+        "node_type": "transformation"
+      },
+      "id": "py:src/ol_superset/ol_superset/commands/lineage.py"
+    },
+    {
+      "attrs": {
+        "node_type": "transformation"
+      },
       "id": "py:src/ol_superset/ol_superset/commands/lock.py"
     },
     {
@@ -25249,7 +25261,19 @@
       "attrs": {
         "node_type": "transformation"
       },
+      "id": "py:src/ol_superset/ol_superset/lib/asset_index.py"
+    },
+    {
+      "attrs": {
+        "node_type": "transformation"
+      },
       "id": "py:src/ol_superset/ol_superset/lib/database_mapping.py"
+    },
+    {
+      "attrs": {
+        "node_type": "transformation"
+      },
+      "id": "py:src/ol_superset/ol_superset/lib/dbt_registry.py"
     },
     {
       "attrs": {
@@ -25268,6 +25292,30 @@
         "node_type": "transformation"
       },
       "id": "py:src/ol_superset/ol_superset/lib/utils.py"
+    },
+    {
+      "attrs": {
+        "node_type": "transformation"
+      },
+      "id": "py:src/ol_superset/tests/__init__.py"
+    },
+    {
+      "attrs": {
+        "node_type": "transformation"
+      },
+      "id": "py:src/ol_superset/tests/test_asset_index.py"
+    },
+    {
+      "attrs": {
+        "node_type": "transformation"
+      },
+      "id": "py:src/ol_superset/tests/test_dbt_registry.py"
+    },
+    {
+      "attrs": {
+        "node_type": "transformation"
+      },
+      "id": "py:src/ol_superset/tests/test_impact.py"
     },
     {
       "attrs": {

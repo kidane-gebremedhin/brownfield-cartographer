@@ -16,6 +16,8 @@ import os
 
 # Large repos (e.g. apache/airflow) can exceed 180s; override with CARTOGRAPHER_CLONE_TIMEOUT (seconds).
 CLONE_TIMEOUT_S = int(os.environ.get("CARTOGRAPHER_CLONE_TIMEOUT", "600"))
+# Clone depth for GitHub URLs. Default 500 so git log --since="90 days ago" has real history for velocity.
+CLONE_DEPTH = int(os.environ.get("CARTOGRAPHER_CLONE_DEPTH", "500"))
 import re
 import tempfile
 from dataclasses import dataclass
@@ -84,7 +86,7 @@ def _clone_github(url: str, *, ref: str | None = None, temp_parent: Path | None 
         tmpdir_obj.cleanup()
         raise ValueError('Refusing to clone into the current working directory tree')
 
-    args = ['git', 'clone', '--depth', '1']
+    args = ['git', 'clone', '--depth', str(CLONE_DEPTH)]
     if ref:
         args += ['--branch', ref]
     args += ['--', url, str(dest)]

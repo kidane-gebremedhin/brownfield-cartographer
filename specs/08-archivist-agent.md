@@ -15,7 +15,7 @@ For each analysis run, generate:
 - `.cartography/onboarding_brief.md`
 - `.cartography/module_graph.json`
 - `.cartography/lineage_graph.json`
-- `.cartography/cartography_trace.jsonl`
+- `cartography/cartography_trace.jsonl`
 
 ## CODEBASE.md Required Sections
 - Architecture Overview

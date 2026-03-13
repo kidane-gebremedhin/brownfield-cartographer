@@ -9,10 +9,10 @@ Spec-first implementation. See ./specs.
 Run static analysis and build the module dependency graph (Python imports + path references, all file types as nodes):
 
 ```bash
-uv run cartographer surveyor https://github.com/dbt-labs/jaffle-shop --output-dir ./cartography
+uv run cartographer surveyor https://github.com/dbt-labs/jaffle-shop
 ```
 
-Output: `module_graph.json`, `surveyor_metrics.json` in the output directory (default: `<repo>/.cartography`).
+Output: `module_graph.json`, `surveyor_metrics.json` in the output directory (default: `<repo>/cartography`).
 
 ---
 
@@ -23,11 +23,11 @@ The **Hydrologist** (data flow & lineage) runs as part of the **full analysis pi
 **How to run the Hydrologist:**
 
 ```bash
-uv run cartographer analyze https://github.com/mitodl/ol-data-platform --output-dir ./cartography
+uv run cartographer analyze https://github.com/mitodl/ol-data-platform
 ```
 
 - **`repo_or_path`** – Local path or GitHub URL.
-- **`--output-dir`** – Where to write artifacts (default: `<repo>/.cartography`).
+- **`--output-dir`** – Where to write artifacts (default: `<repo>/cartography`).
 - **`--branch`** – Git branch/ref (GitHub URLs only).
 - **`--dialect`** – SQL dialect for lineage extraction: `postgres` (default), `bigquery`, `snowflake`, `duckdb`.
 
@@ -35,13 +35,13 @@ Examples:
 
 ```bash
 # Current repo
-uv run cartographer analyze . --output-dir ./cartography
+uv run cartographer analyze .
 
 # dbt repo with Postgres SQL
-uv run cartographer analyze https://github.com/dbt-labs/jaffle-shop --output-dir ./cartography
+uv run cartographer analyze https://github.com/dbt-labs/jaffle-shop
 
 # BigQuery SQL
-uv run cartographer analyze . --output-dir ./cartography --dialect bigquery
+uv run cartographer analyze . --dialect bigquery
 ```
 
 **Why does analyze feel slow or “stale”?** Large repos (e.g. many Python files) take time because: (1) the repo is cloned or scanned; (2) Surveyor and Hydrologist run over all files; (3) **Semanticist runs one LLM call per Python module** (purpose + drift), then clustering and Day-One synthesis. Progress is printed to stderr: `Running Surveyor...`, `Running Hydrologist...`, `Running Semanticist...`, `Semanticist: purpose 50/200`, then `Writing artifacts...`. So the run is not stuck—it is working through many modules. Increase `CARTOGRAPHER_LLM_TIMEOUT` in `.env` if you see timeouts.

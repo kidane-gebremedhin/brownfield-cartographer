@@ -5,11 +5,11 @@ This codebase is summarized from the Surveyor (module import graph and PageRank)
 
 ## Critical Path
 Top 5 modules by PageRank (architectural hubs).
+- `README.md` (PageRank=0.0016)
 - `dg_deployments/reconcile_edxorg_partitions.py` (PageRank=0.0009)
 - `bin/dbt-local-dev.py` (PageRank=0.0009)
 - `bin/dbt-create-staging-models.py` (PageRank=0.0009)
 - `bin/uv-operations.py` (PageRank=0.0009)
-- `dg_projects/__init__.py` (PageRank=0.0009)
 
 ## Data Sources & Sinks
 ### Sources
@@ -144,31 +144,38 @@ Top 5 modules by PageRank (architectural hubs).
 - **Dead-code candidate**: `src/ol_superset/ol_superset/commands/apply_rls.py`
 - **Dead-code candidate**: `src/ol_superset/ol_superset/commands/dedupe.py`
 - **Dead-code candidate**: `src/ol_superset/ol_superset/commands/export.py`
+- **Dead-code candidate**: `src/ol_superset/ol_superset/commands/impact.py`
+- **Dead-code candidate**: `src/ol_superset/ol_superset/commands/lineage.py`
 - **Dead-code candidate**: `src/ol_superset/ol_superset/commands/lock.py`
 - **Dead-code candidate**: `src/ol_superset/ol_superset/commands/promote.py`
 - **Dead-code candidate**: `src/ol_superset/ol_superset/commands/refresh.py`
 - **Dead-code candidate**: `src/ol_superset/ol_superset/commands/roles.py`
 - **Dead-code candidate**: `src/ol_superset/ol_superset/commands/sync.py`
 - **Dead-code candidate**: `src/ol_superset/ol_superset/commands/validate.py`
+- **Dead-code candidate**: `src/ol_superset/ol_superset/lib/asset_index.py`
 - **Dead-code candidate**: `src/ol_superset/ol_superset/lib/database_mapping.py`
+- **Dead-code candidate**: `src/ol_superset/ol_superset/lib/dbt_registry.py`
 - **Dead-code candidate**: `src/ol_superset/ol_superset/lib/role_management.py`
 - **Dead-code candidate**: `src/ol_superset/ol_superset/lib/superset_api.py`
 - **Dead-code candidate**: `src/ol_superset/ol_superset/lib/utils.py`
+- **Dead-code candidate**: `src/ol_superset/tests/test_asset_index.py`
+- **Dead-code candidate**: `src/ol_superset/tests/test_dbt_registry.py`
+- **Dead-code candidate**: `src/ol_superset/tests/test_impact.py`
 - **Documentation drift** (`dg_projects/edxorg/edxorg/ops/object_storage.py`): stale
 - **Documentation drift** (`dg_projects/openedx/openedx/components/__init__.py`): contradictory
 
 ## High-Velocity Files (Recent Change Velocity)
 Files changing most frequently (likely pain points).
-- `dg_deployments/reconcile_edxorg_partitions.py`: 30d=1, 90d=1
-- `bin/dbt-local-dev.py`: 30d=1, 90d=1
-- `bin/dbt-create-staging-models.py`: 30d=1, 90d=1
-- `bin/uv-operations.py`: 30d=1, 90d=1
-- `dg_projects/__init__.py`: 30d=1, 90d=1
-- `bin/utils/chunk_tracking_logs_by_day.py`: 30d=1, 90d=1
-- `src/ol_orchestrate/__init__.py`: 30d=1, 90d=1
-- `src/ol_superset/ol_superset/__init__.py`: 30d=1, 90d=1
-- `src/ol_superset/ol_superset/cli.py`: 30d=1, 90d=1
-- `src/ol_superset/ol_superset/commands/lock.py`: 30d=1, 90d=1
+- `src/ol_dbt/models/reporting/_reporting__models.yml`: 30d=8, 90d=21
+- `dg_projects/edxorg/edxorg/assets/edxorg_archive.py`: 30d=6, 90d=7
+- `dg_deployments/reconcile_edxorg_partitions.py`: 30d=6, 90d=6
+- `src/ol_superset/assets/charts/Page_Engagement_By_Subsection_f41fcf95-edc7-4dcd-bbe8-54406e775b37.yaml`: 30d=5, 90d=7
+- `src/ol_superset/assets/charts/Content_Engagement_-_Weekly_fb5f7dd7-f56e-44f4-97f6-ed0c3804382f.yaml`: 30d=5, 90d=7
+- `src/ol_superset/ol_superset/commands/validate.py`: 30d=5, 90d=6
+- `src/ol_superset/ol_superset/lib/superset_api.py`: 30d=5, 90d=6
+- `src/ol_superset/tests/test_asset_index.py`: 30d=5, 90d=5
+- `src/ol_superset/ol_superset/lib/asset_index.py`: 30d=5, 90d=5
+- `.pre-commit-config.yaml`: 30d=4, 90d=11
 
 ## Module Purpose Index
 - `.gemini/config.yaml`: (purpose pending)
@@ -178,95 +185,95 @@ Files changing most frequently (likely pain points).
 - `.pre-commit-config.yaml`: (purpose pending)
 - `AGENTS.md`: (purpose pending)
 - `README.md`: (purpose pending)
-- `bin/dbt-create-staging-models.py`: This module automates the generation of dbt source definitions and staging model files by interacting with a dbt project to discover database tables.
+- `bin/dbt-create-staging-models.py`: This module automates the generation of dbt source definitions and staging model SQL files by interacting with a dbt project to discover database tables.
 - `bin/dbt-local-dev.py`: This module provides a command-line interface for managing local dbt development workflows by registering AWS Glue tables in DuckDB and cleaning up Trino schemas.
-- `bin/utils/chunk_tracking_logs_by_day.py`: This module reorganizes S3 tracking logs from a source bucket into a destination bucket by grouping them into daily date-based prefixes.
-- `bin/uv-operations.py`: This module runs uv package management commands across multiple Python projects discovered in a directory structure.
+- `bin/utils/chunk_tracking_logs_by_day.py`: This module reorganizes S3 tracking logs from a source bucket into a destination bucket by grouping them into date-based prefixes.
+- `bin/uv-operations.py`: This module runs uv package management commands across multiple Python projects found in a directory structure.
 - `build.yaml`: (purpose pending)
 - `dg_deployments/DEPLOYMENT.md`: (purpose pending)
 - `dg_deployments/README.md`: (purpose pending)
 - `dg_deployments/local/dagster.yaml`: (purpose pending)
 - `dg_deployments/local/workspace.yaml`: (purpose pending)
-- `dg_deployments/reconcile_edxorg_partitions.py`: This module corrects S3 object paths and partition keys for archived course data that were created with malformed course identifiers.
+- `dg_deployments/reconcile_edxorg_partitions.py`: This module corrects S3 storage paths and partition keys for archived course data that were created with malformed course identifiers.
 - `dg_projects/__init__.py`: This module initializes the dg_projects package but contains no code, imports, functions, or classes.
-- `dg_projects/b2b_organization/__init__.py`: This module initializes the B2B organization package but contains no code.
-- `dg_projects/b2b_organization/b2b_organization/__init__.py`: This module initializes the b2b_organization package.
+- `dg_projects/b2b_organization/__init__.py`: This module initializes the b2b_organization package.
+- `dg_projects/b2b_organization/b2b_organization/__init__.py`: This module initializes the b2b_organization package for use.
 - `dg_projects/b2b_organization/b2b_organization/assets/__init__.py`: This module initializes the asset definitions for the B2B organization domain within a Dagster project.
-- `dg_projects/b2b_organization/b2b_organization/assets/data_export.py`: This module exports filtered organizational administration data as partitioned CSV files to cloud storage.
-- `dg_projects/b2b_organization/b2b_organization/definitions.py`: This module defines a Dagster pipeline for exporting B2B organization data to cloud storage, triggered by a sensor.
+- `dg_projects/b2b_organization/b2b_organization/assets/data_export.py`: This module exports filtered organizational administration data as partitioned CSV files for each business-to-business organization.
+- `dg_projects/b2b_organization/b2b_organization/definitions.py`: This module defines a Dagster pipeline that exports B2B organization data to S3, triggered by a sensor, with environment-specific configuration and secret management.
 - `dg_projects/b2b_organization/b2b_organization/defs/__init__.py`: This module initializes the Dagster definitions for the b2b_organization project.
-- `dg_projects/b2b_organization/b2b_organization/partitions/__init__.py`: This module defines a partitioning system for organizing B2B data.
+- `dg_projects/b2b_organization/b2b_organization/partitions/__init__.py`: This module initializes the partitions subpackage for organizing B2B data segments.
 - `dg_projects/b2b_organization/b2b_organization/partitions/b2b_organization.py`: This module defines a dynamic partition for organizing B2B data in Dagster.
 - `dg_projects/b2b_organization/b2b_organization/sensors/__init__.py`: This module initializes the sensor components for the B2B organization project.
-- `dg_projects/b2b_organization/b2b_organization/sensors/b2b_organization.py`: This sensor dynamically partitions and triggers data export jobs for B2B organizations based on a daily-updated list from a data warehouse.
-- `dg_projects/b2b_organization/b2b_organization_tests/__init__.py`: This module initializes the test suite for the b2b_organization package.
+- `dg_projects/b2b_organization/b2b_organization/sensors/b2b_organization.py`: This sensor dynamically partitions and triggers daily data export jobs for each B2B organization found in a warehouse table.
+- `dg_projects/b2b_organization/b2b_organization_tests/__init__.py`: This module is a test package for the b2b_organization project.
 - `dg_projects/b2b_organization/build.yaml`: (purpose pending)
 - `dg_projects/canvas/COMPLETE.md`: (purpose pending)
 - `dg_projects/canvas/build.yaml`: (purpose pending)
 - `dg_projects/canvas/canvas/__init__.py`: This module initializes the canvas package but contains no code, imports, functions, or classes.
-- `dg_projects/canvas/canvas/assets/__init__.py`: This module initializes the canvas assets package but currently contains no code, imports, functions, or classes.
-- `dg_projects/canvas/canvas/assets/canvas.py`: This module exports and manages Canvas course content and metadata as partitioned assets.
+- `dg_projects/canvas/canvas/assets/__init__.py`: This module initializes the canvas assets package and likely handles asset-related functionality for the canvas system.
+- `dg_projects/canvas/canvas/assets/canvas.py`: This module exports and manages Canvas course content and metadata as partitioned assets for downstream processing.
 - `dg_projects/canvas/canvas/definitions.py`: This module schedules and configures automated exports of Canvas course content and metadata to S3 using credentials from Vault and a Google Sheet.
-- `dg_projects/canvas/canvas/defs/__init__.py`: This module defines constants and configuration data for the canvas application.
+- `dg_projects/canvas/canvas/defs/__init__.py`: This module appears to be empty or serves as a namespace package placeholder.
 - `dg_projects/canvas/canvas/lib/__init__.py`: This module initializes the canvas package but contains no code, imports, functions, or classes.
 - `dg_projects/canvas/canvas/lib/canvas.py`: This module retrieves numeric course IDs from a specified column in a Google Sheet.
 - `dg_projects/canvas/canvas/resources/__init__.py`: This module appears to be empty and serves no functional purpose.
 - `dg_projects/canvas/canvas/resources/api_client_factory.py`: This module provides a configurable factory for creating and managing API clients (like Canvas or MIT Learn) by retrieving their credentials from a Vault secrets store.
-- `dg_projects/canvas/canvas/sensors/__init__.py`: This module initializes the canvas sensors package but currently contains no code.
+- `dg_projects/canvas/canvas/sensors/__init__.py`: This module initializes the canvas.sensors package but currently contains no code.
 - `dg_projects/canvas/canvas/sensors/canvas.py`: This module monitors a Google Sheet for changes in Canvas course IDs and triggers data export jobs for new or updated courses.
-- `dg_projects/canvas/canvas_tests/__init__.py`: This module initializes the test suite for the canvas package.
+- `dg_projects/canvas/canvas_tests/__init__.py`: This module initializes the test suite for the canvas project.
 - `dg_projects/data_loading/build.yaml`: (purpose pending)
 - `dg_projects/data_loading/data_loading/__init__.py`: This module initializes the data_loading package but contains no code, imports, functions, or classes.
-- `dg_projects/data_loading/data_loading/components/__init__.py`: This module is empty and serves no functional purpose.
-- `dg_projects/data_loading/data_loading/definitions.py`: This module sets up a Dagster project by automatically loading assets from a definitions folder and providing a dlt resource for data loading operations.
+- `dg_projects/data_loading/data_loading/components/__init__.py`: This module appears to be an empty or placeholder component initialization file.
+- `dg_projects/data_loading/data_loading/definitions.py`: This module sets up a Dagster project with data loading capabilities by automatically loading assets from a definitions folder and providing a dlt resource.
 - `dg_projects/data_loading/data_loading/defs/__init__.py`: This module defines data loading components for a project.
 - `dg_projects/data_loading/data_loading/defs/edxorg_s3_ingest/README.md`: (purpose pending)
-- `dg_projects/data_loading/data_loading/defs/edxorg_s3_ingest/__init__.py`: This module defines a data pipeline component for ingesting data from edX.org into an S3 storage system.
+- `dg_projects/data_loading/data_loading/defs/edxorg_s3_ingest/__init__.py`: This module appears to be a placeholder or empty definition for an EDX organization S3 data ingestion component.
 - `dg_projects/data_loading/data_loading/defs/edxorg_s3_ingest/dagster_assets.py`: This module creates consolidated, non-partitioned data assets from upstream partitioned EdX.org course data.
 - `dg_projects/data_loading/data_loading/defs/edxorg_s3_ingest/defs.py`: This module exports a Dagster asset definition for consolidated data ingestion from EdX.org's S3 storage.
-- `dg_projects/data_loading/data_loading/defs/edxorg_s3_ingest/loads.py`: This module loads edX.org course data from TSV files stored in S3 into a data pipeline.
-- `dg_projects/data_loading/data_loading_tests/__init__.py`: This module provides test components for data loading functionality.
+- `dg_projects/data_loading/data_loading/defs/edxorg_s3_ingest/loads.py`: This module loads edX.org course data from S3 TSV files into a data pipeline.
+- `dg_projects/data_loading/data_loading_tests/__init__.py`: This module provides unit tests for data loading functionality.
 - `dg_projects/data_platform/COMPLETE.md`: (purpose pending)
 - `dg_projects/data_platform/build.yaml`: (purpose pending)
 - `dg_projects/data_platform/data_platform/__init__.py`: This module initializes the data_platform package but contains no code, imports, functions, or classes.
 - `dg_projects/data_platform/data_platform/assets/__init__.py`: This module initializes the data platform's asset system by exposing key classes and functions for asset management.
-- `dg_projects/data_platform/data_platform/assets/metadata/__init__.py`: This module initializes the metadata asset package for the data platform.
+- `dg_projects/data_platform/data_platform/assets/metadata/__init__.py`: This module is empty and serves no functional purpose.
 - `dg_projects/data_platform/data_platform/assets/metadata/databases.py`: This module runs a metadata ingestion workflow for a Trino database.
 - `dg_projects/data_platform/data_platform/definitions.py`: This module provides failure notifications and error formatting for a data orchestration platform.
-- `dg_projects/data_platform/data_platform/defs/__init__.py`: This module appears to be empty and serves no functional purpose.
+- `dg_projects/data_platform/data_platform/defs/__init__.py`: This module appears to be an empty or placeholder file that does not perform any function.
 - `dg_projects/data_platform/data_platform/lib/__init__.py`: This module initializes the data_platform.lib package but contains no code.
 - `dg_projects/data_platform/orchestration_platform_tests/__init__.py`: This module initializes the test package for the orchestration platform.
 - `dg_projects/edxorg/COMPLETE.md`: (purpose pending)
 - `dg_projects/edxorg/build.yaml`: (purpose pending)
-- `dg_projects/edxorg/edxorg/__init__.py`: This module initializes the edxorg package for use as a Python module.
-- `dg_projects/edxorg/edxorg/assets/__init__.py`: This module initializes the Django app for managing assets in the edxorg project.
-- `dg_projects/edxorg/edxorg/assets/edxorg_api.py`: This module extracts program and course metadata from the edX organization API and structures it into separate data assets.
-- `dg_projects/edxorg/edxorg/assets/edxorg_archive.py`: This module processes archived course data and tracking logs from edX to extract, normalize, and manage assets for downstream use.
-- `dg_projects/edxorg/edxorg/assets/edxorg_db_table_specs.py`: This module defines external asset specifications for tracking upstream database table exports from edxorg archive processing within a data pipeline.
-- `dg_projects/edxorg/edxorg/assets/openedx_course_archives.py`: This module processes edX course archive data to extract metadata, video details, certificate signatories, and policy information.
-- `dg_projects/edxorg/edxorg/definitions.py`: This module defines and configures data synchronization and processing workflows for edX.org data, including course exports, tracking logs, and program reports, using Dagster.
+- `dg_projects/edxorg/edxorg/__init__.py`: This module initializes the edxorg package for use within the dg_projects environment.
+- `dg_projects/edxorg/edxorg/assets/__init__.py`: This module initializes the assets subsystem for the edxorg project.
+- `dg_projects/edxorg/edxorg/assets/edxorg_api.py`: This module extracts and structures program and course metadata from the edX organization API for downstream data processing.
+- `dg_projects/edxorg/edxorg/assets/edxorg_archive.py`: This module processes and extracts course-specific assets and tracking logs from archived data for an edX platform.
+- `dg_projects/edxorg/edxorg/assets/edxorg_db_table_specs.py`: This module defines external asset specifications for tracking upstream database table exports from edX.org archive processing.
+- `dg_projects/edxorg/edxorg/assets/openedx_course_archives.py`: This module processes edX course archive data to extract and output structured metadata, video details, certificate signatories, and policy information.
+- `dg_projects/edxorg/edxorg/definitions.py`: This module defines and configures data synchronization and processing workflows for edX.org data, including course exports, tracking logs, and program reports, using Dagster for orchestration.
 - `dg_projects/edxorg/edxorg/defs/__init__.py`: This module defines shared data structures and constants for the edxorg project.
 - `dg_projects/edxorg/edxorg/io_managers/__init__.py`: This module appears to be empty and serves no functional purpose.
-- `dg_projects/edxorg/edxorg/io_managers/gcs.py`: This module provides a Dagster I/O manager that reads and writes files from Google Cloud Storage.
-- `dg_projects/edxorg/edxorg/jobs/__init__.py`: This module initializes the jobs package for the edxorg project.
-- `dg_projects/edxorg/edxorg/jobs/edx_gcs_courses.py`: This module orchestrates a nightly data pipeline that transfers Open edX course data from Google Cloud Storage to Amazon S3 for institutional research.
-- `dg_projects/edxorg/edxorg/jobs/retrieve_edx_exports.py`: This module retrieves and processes archived edX.org course export data from Google Cloud Storage to Amazon S3.
-- `dg_projects/edxorg/edxorg/lib/__init__.py`: This module initializes the edxorg package but contains no code or imports.
-- `dg_projects/edxorg/edxorg/lib/edxorg.py`: This module parses and categorizes filenames from edX data archives based on their naming patterns.
+- `dg_projects/edxorg/edxorg/io_managers/gcs.py`: This module provides a Dagster I/O manager that reads and writes files to Google Cloud Storage.
+- `dg_projects/edxorg/edxorg/jobs/__init__.py`: This module appears to be empty and serves no functional purpose.
+- `dg_projects/edxorg/edxorg/jobs/edx_gcs_courses.py`: This module orchestrates a nightly data pipeline that transfers Open edX course data from Google Cloud Storage to Amazon S3.
+- `dg_projects/edxorg/edxorg/jobs/retrieve_edx_exports.py`: This module orchestrates the transfer and processing of edX.org course data from Google Cloud Storage to Amazon S3.
+- `dg_projects/edxorg/edxorg/lib/__init__.py`: This module initializes the edxorg package but contains no code, imports, functions, or classes.
+- `dg_projects/edxorg/edxorg/lib/edxorg.py`: This module parses and categorizes filenames from edX data archives based on patterns like course IDs, file types, and source systems.
 - `dg_projects/edxorg/edxorg/ops/__init__.py`: This module initializes the `edxorg.ops` package but contains no code, imports, functions, or classes.
-- `dg_projects/edxorg/edxorg/ops/edx_gcs_courses.py`: This module transfers course data tarballs from Google Cloud Storage to Amazon S3.
+- `dg_projects/edxorg/edxorg/ops/edx_gcs_courses.py`: This module transfers course data tarballs from a Google Cloud Storage bucket to an Amazon S3 bucket.
 - `dg_projects/edxorg/edxorg/ops/object_storage.py`: This module provides Dagster operations for transferring files between local storage and cloud object storage services (S3 and GCS).
-- `dg_projects/edxorg/edxorg/sensors/__init__.py`: This module appears to be an empty or placeholder file that does not contain any functional code.
-- `dg_projects/edxorg/edxorg_tests/__init__.py`: This module is empty and does nothing.
-- `dg_projects/edxorg/edxorg_tests/test_edxorg_lib.py`: This module tests functions that categorize and parse archive file paths for an edX platform data pipeline.
+- `dg_projects/edxorg/edxorg/sensors/__init__.py`: This module appears to be an empty or placeholder file for organizing sensor-related components.
+- `dg_projects/edxorg/edxorg_tests/__init__.py`: This module initializes the test suite for the edxorg project.
+- `dg_projects/edxorg/edxorg_tests/test_edxorg_lib.py`: This module tests functions that categorize and parse archive file paths for an edX platform, focusing on extracting course IDs and data types from filenames.
 - `dg_projects/lakehouse/COMPLETE.md`: (purpose pending)
 - `dg_projects/lakehouse/REFACTORING_NOTES.md`: (purpose pending)
 - `dg_projects/lakehouse/build.yaml`: (purpose pending)
 - `dg_projects/lakehouse/docs/README.md`: (purpose pending)
 - `dg_projects/lakehouse/docs/local_development.md`: (purpose pending)
 - `dg_projects/lakehouse/lakehouse/__init__.py`: This module initializes the lakehouse package for use.
-- `dg_projects/lakehouse/lakehouse/assets/__init__.py`: This module initializes the lakehouse assets package but contains no code, imports, functions, or classes.
-- `dg_projects/lakehouse/lakehouse/assets/instructor_onboarding.py`: This module extracts instructor email addresses from a data model and pushes them to a GitHub repository for access management.
+- `dg_projects/lakehouse/lakehouse/assets/__init__.py`: This module initializes the lakehouse assets package but currently contains no code, imports, functions, or classes.
+- `dg_projects/lakehouse/lakehouse/assets/instructor_onboarding.py`: This module extracts instructor email addresses from a data model and formats them for access management in a GitHub repository.
 - `dg_projects/lakehouse/lakehouse/assets/lakehouse/__init__.py`: This module initializes the lakehouse package but contains no code, imports, functions, or classes.
 - `dg_projects/lakehouse/lakehouse/assets/lakehouse/dbt.py`: This module defines a Dagster asset graph for a dbt project, configuring automation policies and grouping based on dbt resource properties.
 - `dg_projects/lakehouse/lakehouse/assets/superset.py`: This module creates and refreshes Superset datasets based on corresponding dbt models.
@@ -282,7 +289,7 @@ Files changing most frequently (likely pain points).
 - `dg_projects/learning_resources/learning_resources/__init__.py`: This module initializes the learning_resources package but contains no code, imports, functions, or classes.
 - `dg_projects/learning_resources/learning_resources/assets/__init__.py`: This module initializes the assets subsystem for the learning_resources application.
 - `dg_projects/learning_resources/learning_resources/assets/open_learning_library.py`: This module monitors GitHub repositories for Open Learning Library courses to keep their contents synchronized with S3 for search functionality.
-- `dg_projects/learning_resources/learning_resources/assets/sloan_api.py`: This module retrieves and structures course and course offering data from MIT Sloan Executive Education APIs into two separate data assets.
+- `dg_projects/learning_resources/learning_resources/assets/sloan_api.py`: This module retrieves and structures course and course offering metadata from MIT Sloan Executive Education APIs.
 - `dg_projects/learning_resources/learning_resources/assets/video_shorts.py`: This module processes video shorts by fetching metadata from Google Sheets and generating compressed videos and thumbnails.
 - `dg_projects/learning_resources/learning_resources/definitions.py`: This module orchestrates data extraction and processing for learning resources from multiple platforms like MIT Sloan and video shorts, managing assets, schedules, and external integrations.
 - `dg_projects/learning_resources/learning_resources/defs/__init__.py`: This module appears to be an empty or placeholder package initialization file.
@@ -290,26 +297,26 @@ Files changing most frequently (likely pain points).
 - `dg_projects/learning_resources/learning_resources/lib/contants.py`: This module defines constant values for video thumbnail dimensions.
 - `dg_projects/learning_resources/learning_resources/lib/google_sheets.py`: This module fetches and processes video metadata from a Google Sheet.
 - `dg_projects/learning_resources/learning_resources/lib/video_processing.py`: This module processes video files by creating thumbnails and compressing them to a target size.
-- `dg_projects/learning_resources/learning_resources/resources/__init__.py`: This module initializes the learning_resources package by exposing its core components for import.
-- `dg_projects/learning_resources/learning_resources/sensors/__init__.py`: This module initializes the sensors package but currently contains no code.
-- `dg_projects/learning_resources/learning_resources/sensors/video_shorts.py`: This module monitors a Google Sheets data source for new video entries and triggers corresponding processing jobs in a Dagster pipeline.
-- `dg_projects/learning_resources/learning_resources_tests/__init__.py`: This module provides test utilities and configurations for the learning_resources application.
+- `dg_projects/learning_resources/learning_resources/resources/__init__.py`: This module initializes the learning_resources package and makes its resources accessible.
+- `dg_projects/learning_resources/learning_resources/sensors/__init__.py`: This module initializes the sensors package but contains no code, imports, functions, or classes.
+- `dg_projects/learning_resources/learning_resources/sensors/video_shorts.py`: This module monitors a Google Sheets data source for new video entries and triggers processing jobs for each new video.
+- `dg_projects/learning_resources/learning_resources_tests/__init__.py`: This module appears to be an empty test package or placeholder for tests.
 - `dg_projects/legacy_openedx/COMPLETE.md`: (purpose pending)
 - `dg_projects/legacy_openedx/build.yaml`: (purpose pending)
 - `dg_projects/legacy_openedx/legacy_openedx/__init__.py`: This module initializes the legacy_openedx package.
 - `dg_projects/legacy_openedx/legacy_openedx/definitions.py`: This module defines and configures scheduled data extraction jobs for legacy Open edX course data across multiple deployments.
 - `dg_projects/legacy_openedx/legacy_openedx/jobs/__init__.py`: This module initializes the jobs package for the legacy Open edX project.
-- `dg_projects/legacy_openedx/legacy_openedx/jobs/open_edx.py`: This module defines a data pipeline that extracts course and user information from an Open edX platform for institutional research.
+- `dg_projects/legacy_openedx/legacy_openedx/jobs/open_edx.py`: This module defines a data pipeline that extracts course data and structure from Open edX for institutional research, ultimately sending it to BigQuery and S3.
 - `dg_projects/legacy_openedx/legacy_openedx/lib/__init__.py`: This module is an empty package placeholder for the legacy_openedx library.
-- `dg_projects/legacy_openedx/legacy_openedx/ops/__init__.py`: This module appears to be an empty or placeholder package initialization file for a legacy Open edX operations component.
+- `dg_projects/legacy_openedx/legacy_openedx/ops/__init__.py`: This module initializes the legacy_openedx.ops package for operations-related functionality.
 - `dg_projects/legacy_openedx/legacy_openedx/ops/open_edx.py`: This module extracts and uploads data from an Open edX platform, including course structures, user enrollments, submissions, roles, and forum data.
 - `dg_projects/legacy_openedx/legacy_openedx/repositories/__init__.py`: This module initializes the repositories package for the legacy Open edX project.
 - `dg_projects/legacy_openedx/legacy_openedx/resources/__init__.py`: This module initializes the resources package for the legacy Open edX project.
-- `dg_projects/legacy_openedx/legacy_openedx/resources/healthchecks.py`: This module provides a Dagster resource for sending status updates (like start and failure signals) to an external health monitoring service.
+- `dg_projects/legacy_openedx/legacy_openedx/resources/healthchecks.py`: This module provides a Dagster resource for sending status updates (start, fail, or completion) to an external health monitoring service (Healthchecks.io).
 - `dg_projects/legacy_openedx/legacy_openedx/resources/mysql_db.py`: This module provides a reusable MySQL database client and a Dagster resource for executing queries.
 - `dg_projects/legacy_openedx/legacy_openedx/resources/sqlite_db.py`: This module provides a SQLite database client and a Dagster resource for connecting to and querying SQLite databases.
 - `dg_projects/legacy_openedx/legacy_openedx/schedules/__init__.py`: This module initializes the schedules package for the legacy Open edX project.
-- `dg_projects/legacy_openedx/legacy_openedx/schedules/open_edx.py`: This module defines daily Dagster schedules for running different business unit's course pipelines.
+- `dg_projects/legacy_openedx/legacy_openedx/schedules/open_edx.py`: This module defines daily Dagster schedules for running course pipelines for different business units (residential, mitxpro, mitxonline).
 - `dg_projects/legacy_openedx/legacy_openedx/sensors/__init__.py`: This module appears to be an empty or placeholder package for sensors in the legacy Open edX system.
 - `dg_projects/legacy_openedx/legacy_openedx_tests/__init__.py`: This module initializes the test suite for the legacy Open edX project.
 - `dg_projects/openedx/COMPLETE.md`: (purpose pending)
@@ -319,31 +326,31 @@ Files changing most frequently (likely pain points).
 - `dg_projects/openedx/openedx/assets/__init__.py`: This module initializes the assets package for the Open edX platform.
 - `dg_projects/openedx/openedx/assets/openedx.py`: This module extracts and processes course structure and content data from an Open edX platform.
 - `dg_projects/openedx/openedx/components/__init__.py`: This module provides a reusable component for OpenEdX deployment functionality.
-- `dg_projects/openedx/openedx/components/openedx_deployment.py`: This module creates and configures Dagster assets, sensors, and resources for orchestrating data extraction from multiple OpenEdX course deployments.
+- `dg_projects/openedx/openedx/components/openedx_deployment.py`: This module creates and configures Dagster assets, sensors, and resources for orchestrating data extraction from multiple OpenEdX deployments.
 - `dg_projects/openedx/openedx/definitions.py`: This module defines Dagster configurations and resources for orchestrating OpenEdX data extraction and tracking log normalization pipelines across different environments and deployments.
 - `dg_projects/openedx/openedx/jobs/__init__.py`: This module initializes the jobs package for the Open edX platform.
-- `dg_projects/openedx/openedx/jobs/normalize_logs.py`: This module defines two Dagster workflows that normalize and convert historical tracking log data from S3 into a consistent format and write it back to S3.
+- `dg_projects/openedx/openedx/jobs/normalize_logs.py`: This module defines two data processing workflows that normalize and convert tracking log data from S3 into a consistent format and write the results back to S3.
 - `dg_projects/openedx/openedx/lib/__init__.py`: This module initializes the `openedx.lib` Python package namespace.
 - `dg_projects/openedx/openedx/lib/assets_helper.py`: This module provides utilities for modifying Dagster asset definitions, specifically for binding partitions and adding prefixes to asset keys.
 - `dg_projects/openedx/openedx/lib/magic_numbers.py`: This module defines a constant for an HTTP status code.
 - `dg_projects/openedx/openedx/ops/__init__.py`: This module is empty and serves no functional purpose.
-- `dg_projects/openedx/openedx/ops/normalize_logs.py`: This module processes and transfers tracking log data between S3 storage and a DuckDB database.
+- `dg_projects/openedx/openedx/ops/normalize_logs.py`: This module processes and transfers tracking log files between S3 storage and a DuckDB database.
 - `dg_projects/openedx/openedx/partitions/__init__.py`: This module appears to be an empty or placeholder module for partitions functionality.
 - `dg_projects/openedx/openedx/partitions/openedx.py`: This module defines static and dynamic Dagster partitions for Open edX deployments and their associated course runs.
-- `dg_projects/openedx/openedx/schedules/__init__.py`: This module initializes the schedules Django app for Open edX.
+- `dg_projects/openedx/openedx/schedules/__init__.py`: This module initializes the schedules package for the Open edX platform.
 - `dg_projects/openedx/openedx/schedules/open_edx.py`: This module defines daily Dagster schedules for running course pipelines for different business units (residential, MITxPro, and MITxOnline).
 - `dg_projects/openedx/openedx/sensors/__init__.py`: This module appears to be an empty or placeholder package for sensor-related components.
-- `dg_projects/openedx/openedx/sensors/openedx.py`: This module monitors edX courses and course runs to trigger data processing workflows when new runs are detected or existing course content changes.
+- `dg_projects/openedx/openedx/sensors/openedx.py`: This module monitors edX course runs and versions to trigger data processing workflows for new or updated courses.
 - `dg_projects/openedx/openedx_tests/__init__.py`: This module initializes the test suite for the Open edX project.
 - `dg_projects/student_risk_probability/__init__.py`: This module initializes the student_risk_probability package but contains no code, imports, functions, or classes.
 - `dg_projects/student_risk_probability/build.yaml`: (purpose pending)
-- `dg_projects/student_risk_probability/student_risk_probability/__init__.py`: This module initializes the student_risk_probability package.
-- `dg_projects/student_risk_probability/student_risk_probability/assets/__init__.py`: This module appears to be an empty or placeholder asset package for a student risk probability project.
-- `dg_projects/student_risk_probability/student_risk_probability/assets/risk_probability.py`: This module calculates and outputs student risk probabilities based on a cheating detection report.
-- `dg_projects/student_risk_probability/student_risk_probability/definitions.py`: This module configures a Dagster data pipeline to export student risk probability data to an Iceberg table and S3 storage.
+- `dg_projects/student_risk_probability/student_risk_probability/__init__.py`: This module initializes the student_risk_probability package for use.
+- `dg_projects/student_risk_probability/student_risk_probability/assets/__init__.py`: This module is empty and serves no functional purpose.
+- `dg_projects/student_risk_probability/student_risk_probability/assets/risk_probability.py`: This module calculates and outputs student risk probabilities based on processed cheating detection data.
+- `dg_projects/student_risk_probability/student_risk_probability/definitions.py`: This module configures a Dagster data pipeline to export student risk probability data to an Iceberg table and S3.
 - `dg_projects/student_risk_probability/student_risk_probability/lib/__init__.py`: This module initializes the student_risk_probability package but contains no code.
-- `dg_projects/student_risk_probability/student_risk_probability/lib/helper.py`: This module scales selected features and computes risk probabilities from pre-trained logistic regression weights.
-- `dg_projects/student_risk_probability/student_risk_probability/resources/__init__.py`: This module defines no functionality and serves as a namespace package or placeholder for the `resources` component.
+- `dg_projects/student_risk_probability/student_risk_probability/lib/helper.py`: This module transforms student data features and computes risk probabilities using pre-trained logistic regression weights.
+- `dg_projects/student_risk_probability/student_risk_probability/resources/__init__.py`: This module defines no functionality and serves as a namespace package or placeholder for the `resources` directory.
 - `dg_projects/student_risk_probability/student_risk_probability/resources/weights.json`: (purpose pending)
 - `docker-compose.yaml`: (purpose pending)
 - `docs/DBT_DIALECT_COMPATIBILITY.md`: (purpose pending)
@@ -354,46 +361,46 @@ Files changing most frequently (likely pain points).
 - `docs/POSTGRES_POOL_EXHAUSTION.md`: (purpose pending)
 - `docs/POSTGRES_POOL_EXHAUSTION_ROOT_CAUSE.md`: (purpose pending)
 - `packages/ol-orchestrate-lib/README.md`: (purpose pending)
-- `packages/ol-orchestrate-lib/src/ol_orchestrate/__init__.py`: This module defines the version for a shared orchestration library used by MIT Open Learning.
+- `packages/ol-orchestrate-lib/src/ol_orchestrate/__init__.py`: This module defines the version for a shared orchestration library.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/assets/__init__.py`: This module defines asset-related classes and functions for orchestration.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/io_managers/__init__.py`: This module provides input/output management components for orchestration tasks.
-- `packages/ol-orchestrate-lib/src/ol_orchestrate/io_managers/filepath.py`: This module provides a Dagster I/O manager that reads and writes file objects across local, S3, and GCS storage systems.
+- `packages/ol-orchestrate-lib/src/ol_orchestrate/io_managers/filepath.py`: This module provides a configurable Dagster I/O manager that reads and writes file objects across local, S3, and GCS storage systems.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/jobs/__init__.py`: This module organizes job-related components for orchestration.
-- `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/__init__.py`: This module serves as a namespace package for the `ol_orchestrate.lib` library.
+- `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/__init__.py`: This module serves as a package namespace for the `ol_orchestrate.lib` library.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/arrow_helper.py`: This module writes Apache Arrow tables to Parquet files on various filesystems.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/automation_policies.py`: This module defines a Dagster automation policy that triggers a job when upstream dependencies change, code changes, or dependencies become missing, while ensuring the job is not already running and its dependencies are available.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/constants.py`: This module defines environment-specific configuration constants and lists of identifiers for a data orchestration system.
-- `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/dagster_helpers.py`: This module provides utilities for selecting and configuring Dagster I/O managers based on the environment, supporting both local filesystem and cloud storage for data serialization and file object handling.
+- `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/dagster_helpers.py`: This module provides utilities for selecting and configuring Dagster I/O managers for different environments (development vs. production) and for handling partition key sanitization.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/dagster_types/__init__.py`: This module defines custom Dagster types for data orchestration.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/dagster_types/files.py`: This module defines a custom Dagster-compatible type for representing file system paths.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/dagster_types/google.py`: This module defines a Dagster type for Google BigQuery DatasetListItem objects.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/file_rendering.py`: This module writes tabular data to a CSV file, appending rows and conditionally writing a header.
-- `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/glue_helper.py`: This module creates or updates AWS Glue table metadata from data schemas and locations, and retrieves dbt model data.
-- `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/hooks.py`: This module provides Dagster hooks to send success or failure notifications to a healthchecks service.
-- `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/openedx.py`: This module processes and flattens Open edX course structure data into a list of blocks with metadata and hierarchical relationships.
+- `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/glue_helper.py`: This module creates or updates AWS Glue table definitions from data schemas and retrieves dbt model data.
+- `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/hooks.py`: This module provides Dagster hooks to send success or failure notifications to a healthchecks.io service.
+- `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/openedx.py`: This module processes and flattens Open edX course structure data for analysis or storage.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/postgres/__init__.py`: This module provides pooled PostgreSQL storage implementations for Dagster's run, event log, and schedule storage.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/postgres/event_log.py`: This module provides a PostgreSQL-backed event log storage for Dagster with connection pooling to manage database connections efficiently.
-- `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/postgres/run_storage.py`: This module provides a PostgreSQL-based run storage system for Dagster with connection pooling to manage database connections efficiently.
+- `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/postgres/run_storage.py`: This module provides a PostgreSQL-based storage backend for Dagster run data with connection pooling to manage database connections efficiently.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/postgres/schedule_storage.py`: This module provides a PostgreSQL-based storage backend for Dagster schedules with connection pooling to manage database connections efficiently.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/utils.py`: This module provides utilities for authenticating with a secrets vault, retrieving environment-specific S3 bucket configurations, and computing a hash for ZIP file contents.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/lib/yaml_config_helper.py`: This module loads YAML configuration files from disk and returns their parsed contents as dictionaries.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/ops/__init__.py`: This module provides orchestration operations for managing and coordinating tasks or workflows.
-- `packages/ol-orchestrate-lib/src/ol_orchestrate/partitions/__init__.py`: This module appears to be an empty or placeholder package for organizing partition-related functionality.
+- `packages/ol-orchestrate-lib/src/ol_orchestrate/partitions/__init__.py`: This module organizes and exposes partition-related functionality for orchestration.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/partitions/edxorg.py`: This module defines a dynamic partition for organizing data by course and source.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/__init__.py`: This module defines resource classes for orchestration tasks.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/api_client.py`: This module provides a configurable HTTP client for making authenticated GET and POST requests to a specified API base URL.
-- `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/api_client_factory.py`: This module provides a configurable Dagster resource factory that creates and manages API clients (like Canvas and MITLearn) by retrieving their credentials from a Vault secrets store.
-- `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/athena_db.py`: This module provides a Dagster resource for executing SQL queries against an AWS Athena database.
+- `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/api_client_factory.py`: This module provides a configurable Dagster resource factory that creates and manages API clients (like Canvas or MIT Learn) by retrieving their credentials from a Vault secrets store.
+- `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/athena_db.py`: This module provides a Dagster resource for executing SQL queries on AWS Athena.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/bigquery_db.py`: This module provides a Dagster resource for authenticating and connecting to Google BigQuery using service account credentials.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/canvas_api.py`: This module provides a client to interact with a Canvas API for retrieving, exporting, and downloading course content and data.
-- `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/gcp_gcs.py`: This module provides a Dagster resource for authenticating and connecting to Google Cloud Storage using service account credentials.
+- `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/gcp_gcs.py`: This module provides a Dagster-managed connection to Google Cloud Storage using service account credentials.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/github.py`: This module provides a Dagster resource that creates authenticated GitHub API clients by retrieving credentials from Vault.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/learn_api.py`: This module sends authenticated webhook notifications to a learning platform API for course exports and video shorts processing.
-- `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/oauth.py`: This module provides a reusable OAuth2 client for authenticated API requests within a Dagster orchestration environment.
+- `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/oauth.py`: This module provides a reusable OAuth2 client for making authenticated API requests with automatic token management within a Dagster resource framework.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/openedx.py`: This module provides a Dagster resource for interacting with the Open edX platform's API to manage courses, including retrieving course data, checking statuses, and triggering exports.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/outputs.py`: This module provides configurable directory management for organizing and cleaning up pipeline output results in Dagster workflows.
-- `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/postgres_db.py`: This module provides a Dagster resource for connecting to and executing read/write queries against a PostgreSQL database.
-- `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/secrets/__init__.py`: This module appears to be an empty or placeholder package for secrets-related resource orchestration.
+- `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/postgres_db.py`: This module provides a Dagster resource for connecting to and executing read/write queries on a PostgreSQL database.
+- `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/secrets/__init__.py`: This module provides a base class for managing secrets within the orchestration system.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/resources/secrets/vault.py`: This module provides a Dagster resource for authenticating to and interacting with HashiCorp Vault using multiple authentication methods.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/schedules/__init__.py`: This module provides scheduling-related functionality for orchestration tasks.
 - `packages/ol-orchestrate-lib/src/ol_orchestrate/sensors/__init__.py`: This module appears to be an empty or placeholder package for sensor-related components.
@@ -1069,7 +1076,7 @@ Files changing most frequently (likely pain points).
 - `src/ol_dbt/packages.yml`: (purpose pending)
 - `src/ol_dbt/profiles.yml`: (purpose pending)
 - `src/ol_dbt/seeds/_seed_doc.yml`: (purpose pending)
-- `src/ol_orchestrate/__init__.py`: This module prevents imports by raising an error to indicate that its functionality has been moved to a new structure.
+- `src/ol_orchestrate/__init__.py`: This module prevents imports by raising an error to indicate that its functionality has been moved elsewhere.
 - `src/ol_superset/.sup/state.yml`: (purpose pending)
 - `src/ol_superset/README.md`: (purpose pending)
 - `src/ol_superset/WORKFLOWS.md`: (purpose pending)
@@ -1129,6 +1136,7 @@ Files changing most frequently (likely pain points).
 - `src/ol_superset/assets/charts/Learner_Page_Engagement_9bd2269c-fd5c-463d-b63e-14fa63e90a55.yaml`: (purpose pending)
 - `src/ol_superset/assets/charts/Learner_Performance_d747faf0-d2f8-4dde-84ca-54b60775e051.yaml`: (purpose pending)
 - `src/ol_superset/assets/charts/Learner_Problem_Engagement_695dd2d8-48d5-436b-a646-204bdf5f2be5.yaml`: (purpose pending)
+- `src/ol_superset/assets/charts/Learner_Problem_Engagement_test_37f77897-e846-49f9-835b-af81277e5f4b.yaml`: (purpose pending)
 - `src/ol_superset/assets/charts/Learner_Video_Engagement_3c5fdc59-85d7-484b-9fdf-170336c8a4c0.yaml`: (purpose pending)
 - `src/ol_superset/assets/charts/Learners_Enrolled_37d70f20-6dcc-4237-921b-521dc43425a7.yaml`: (purpose pending)
 - `src/ol_superset/assets/charts/Learners_Enrolled_c0066291-5b04-437d-b41d-3a4412aa8c82.yaml`: (purpose pending)
@@ -1197,6 +1205,7 @@ Files changing most frequently (likely pain points).
 - `src/ol_superset/assets/charts/course_user_mapping_08141743-0bc0-4a79-a3b4-39d34d221742.yaml`: (purpose pending)
 - `src/ol_superset/assets/charts/dim_user_last_updated_1e1419f1-f836-43de-964e-6ea9d9521645.yaml`: (purpose pending)
 - `src/ol_superset/assets/charts/of_Watches_By_Video_cb328531-f862-467c-b073-4a2cec5dfbe2.yaml`: (purpose pending)
+- `src/ol_superset/assets/charts/test-superset-new-workflow_89fb36ad-5554-4959-8956-dc073036fb19.yaml`: (purpose pending)
 - `src/ol_superset/assets/charts/xPRO_Product_List_-_Standard_Products_Only_244158fe-79de-4ad8-bc53-f82ef3f32ffa.yaml`: (purpose pending)
 - `src/ol_superset/assets/dashboards/Combined_Learners_Search_68d00b7a-8f6b-4f18-b738-9ecc0a9dd294.yaml`: (purpose pending)
 - `src/ol_superset/assets/dashboards/Coupons_06b246fd-65db-440b-9a98-183ca37a2660.yaml`: (purpose pending)
@@ -1215,6 +1224,8 @@ Files changing most frequently (likely pain points).
 - `src/ol_superset/assets/dashboards/Products_20e6140c-d3dd-4d23-be26-c1642d73b288.yaml`: (purpose pending)
 - `src/ol_superset/assets/dashboards/Program_Enrollment_and_Credential_203bbba1-adb8-4f95-8951-7e958f2d6260.yaml`: (purpose pending)
 - `src/ol_superset/assets/dashboards/Suspicious_Behavior_Report_1e2883d9-d122-4af6-aa33-43a0f0ac2c3b.yaml`: (purpose pending)
+- `src/ol_superset/assets/dashboards/untitled_dashboard_c7ef251f-7c0a-4150-bb29-51ec41446550.yaml`: (purpose pending)
+- `src/ol_superset/assets/dashboards/untitled_dashboard_e3c3760d-9ddc-4257-84b0-bb10a604a178.yaml`: (purpose pending)
 - `src/ol_superset/assets/dashboards/xPro_Reference_Dashboard_45b6c06a-1e2d-43d3-8b98-a95b82b375d5.yaml`: (purpose pending)
 - `src/ol_superset/assets/databases/Superset_Metadata_DB.yaml`: (purpose pending)
 - `src/ol_superset/assets/databases/Trino.yaml`: (purpose pending)
@@ -1224,6 +1235,7 @@ Files changing most frequently (likely pain points).
 - `src/ol_superset/assets/datasets/Trino/Data_Detail_Problems_dc0886e8-1861-4bd9-a694-25a063adcf83.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/Data_Detail_Video_3967f60c-2d80-41ad-8245-67dbf555bd82.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/Enrollment_Activity_Counts_Dataset_a9301703-0ac1-4eb7-a409-f65da5d8cba1.yaml`: (purpose pending)
+- `src/ol_superset/assets/datasets/Trino/Enrollment_Activity_Counts_Dataset_f33af055-8200-464d-bd40-fee6194e0fd4.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/Learner_Demographics_And_Cert_Info_232090f5-bb02-4327-9067-2ae49b64074b.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/Program_Enrollment_with_user_cc496da8-03f6-43ea-9b6c-900ba695e4b6.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/afact_course_page_engagement_68c544d7-726d-495a-bf87-81255b2e8604.yaml`: (purpose pending)
@@ -1234,12 +1246,14 @@ Files changing most frequently (likely pain points).
 - `src/ol_superset/assets/datasets/Trino/cheating_detection_report_65bdc57c-00f9-42d0-bd37-d4363532fd81.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/combined_enrollments_with_gender_and_date_f3e517dd-4012-441e-8dfe-edaef1318000.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/combined_learners_enrollment_detail_b579034e-2b79-4d3a-ba84-94c9fcfa0cc5.yaml`: (purpose pending)
+- `src/ol_superset/assets/datasets/Trino/combined_video_engagements_counts_report_f0b79172-5047-402f-b872-42433fc97548.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/dim_course_content_466da6d4-e870-4afd-866a-4c95044400b6.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/dim_discussion_topic_62e16051-719e-48d6-b256-e40600ec3764.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/dim_platform_0e455533-8a1c-4dd8-a894-cff7a228889c.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/dim_problem_23a7a643-e426-42ea-9759-c05f7a524e22.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/dim_user_7f46cdba-1bf0-4f10-9606-a41b77b9e77c.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/dim_video_135f82ef-b81b-4f5b-8f82-ed299675e618.yaml`: (purpose pending)
+- `src/ol_superset/assets/datasets/Trino/discussion_detail_report_ec0fc17c-ebca-44ae-94ae-2072da856d24.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/engagement_problem_completion_raw_4490876f-d440-4df8-8e42-a467bac0821f.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/engagement_problem_completion_summary_6e06ce54-f2a2-4df1-9bcb-5c556f42d247.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/engagement_problem_summary_test1_d763f86e-5c1b-4996-9b35-f8cb13947f11.yaml`: (purpose pending)
@@ -1282,9 +1296,13 @@ Files changing most frequently (likely pain points).
 - `src/ol_superset/assets/datasets/Trino/marts__mitxpro_all_coupons_50998478-4b82-451d-82ed-5ea60fd48b05.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/marts__mitxpro_ecommerce_productlist_dc5b25f5-cf3a-41b4-9b15-4b58532da463.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/marts__ocw_courses_5e9078ef-d0a9-4db7-9635-75fb9a2321de.yaml`: (purpose pending)
+- `src/ol_superset/assets/datasets/Trino/mitxonline_course_engagements_daily_report_91b8255f-044e-4162-9b42-f99143202ed4.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/mitxonline_video_engagements_w_video_counts_0514985b-ff21-490b-a34e-25ae356da7e9.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/organization_administration_report_4a71d2a9-c1b2-44e7-8c8d-a4a336779ab8.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/page_engagement_views_c3182341-5246-40c2-8f04-885369c38093.yaml`: (purpose pending)
+- `src/ol_superset/assets/datasets/Trino/page_engagement_views_report_d7152969-b9b4-4305-b2c4-5f2dd922302a.yaml`: (purpose pending)
+- `src/ol_superset/assets/datasets/Trino/problem_engagement_detail_report_c6578429-599c-4cfa-9ad2-a1081ecc91f0.yaml`: (purpose pending)
+- `src/ol_superset/assets/datasets/Trino/program_enrollment_with_user_report_378cfe46-2614-42e3-82f3-f161aa37e66d.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/program_summary_report_0d77ec2b-8489-47f8-b0c3-3abde0b1b8f3.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/raw__learn_ai__app__postgres__ai_chatbots_tutorbotoutput_757ec475-ddad-436a-9a7c-3da657b69a9b.yaml`: (purpose pending)
 - `src/ol_superset/assets/datasets/Trino/student_risk_probability_report_ca346322-251e-455b-a2cc-b11976e69ce5.yaml`: (purpose pending)
@@ -1298,22 +1316,30 @@ Files changing most frequently (likely pain points).
 - `src/ol_superset/assets/datasets/Trino/video_engagements_report_4168432c-fd99-4ef6-bf8c-14acd0cb9b33.yaml`: (purpose pending)
 - `src/ol_superset/assets/metadata.yaml`: (purpose pending)
 - `src/ol_superset/ol_superset/__init__.py`: This module defines the version of the Superset asset management CLI package.
-- `src/ol_superset/ol_superset/cli.py`: This module provides a command-line interface for managing Apache Superset assets across environments.
-- `src/ol_superset/ol_superset/commands/__init__.py`: This module is empty and serves no functional purpose.
-- `src/ol_superset/ol_superset/commands/apply_rls.py`: This module applies row-level security policies to a Superset instance by reading filter definitions from a JSON file and creating or updating them via the Superset API.
-- `src/ol_superset/ol_superset/commands/dedupe.py`: This module deduplicates and renames Superset asset files by removing duplicates with the same UUID and standardizing their names.
+- `src/ol_superset/ol_superset/cli.py`: This module provides a command-line interface for managing Apache Superset assets across environments with safety guardrails.
+- `src/ol_superset/ol_superset/commands/__init__.py`: This module appears to be empty and serves no functional purpose.
+- `src/ol_superset/ol_superset/commands/apply_rls.py`: This module applies row-level security policies to a Superset instance by reading policy definitions, resolving role and dataset names to IDs, and creating or updating filters via the API.
+- `src/ol_superset/ol_superset/commands/dedupe.py`: This module identifies and removes duplicate Superset asset files based on UUIDs while standardizing their names.
 - `src/ol_superset/ol_superset/commands/export.py`: This module exports Superset assets from a specified instance to a directory, optionally skipping deduplication.
-- `src/ol_superset/ol_superset/commands/lock.py`: This module provides a command-line interface to control whether Superset assets can be edited manually in the UI by toggling their external management flag.
-- `src/ol_superset/ol_superset/commands/promote.py`: This module provides a command-line tool to safely deploy Superset assets from a QA environment to production with built-in validation and confirmation steps.
+- `src/ol_superset/ol_superset/commands/impact.py`: This module analyzes the impact of code changes on Superset assets by tracing dependencies and identifying unused components.
+- `src/ol_superset/ol_superset/commands/lineage.py`: This module renders a dependency graph from dashboards to underlying data assets, optionally linking datasets to dbt models.
+- `src/ol_superset/ol_superset/commands/lock.py`: This module provides a command-line interface to control whether Superset assets (dashboards and charts) can be edited manually in the UI by toggling their external management flag.
+- `src/ol_superset/ol_superset/commands/promote.py`: This module provides a command-line tool to deploy Superset assets from a QA environment to a production environment with built-in safety checks.
 - `src/ol_superset/ol_superset/commands/refresh.py`: This module refreshes physical dataset schemas in a Superset instance to synchronize them with underlying database changes.
 - `src/ol_superset/ol_superset/commands/roles.py`: This module provides a command-line interface for managing dataset access permissions based on governance roles.
 - `src/ol_superset/ol_superset/commands/sync.py`: This module synchronizes Superset assets between two Superset instances.
-- `src/ol_superset/ol_superset/commands/validate.py`: This module validates Superset asset files by checking YAML syntax, counting assets, and detecting common issues like embedded passwords.
+- `src/ol_superset/ol_superset/commands/validate.py`: This module validates Superset asset definitions and their dependencies against a dbt project.
 - `src/ol_superset/ol_superset/lib/__init__.py`: This module initializes the ol_superset library package.
+- `src/ol_superset/ol_superset/lib/asset_index.py`: This module builds UUID-keyed indexes of Superset assets (datasets, charts, and dashboards) by parsing their YAML configuration files.
 - `src/ol_superset/ol_superset/lib/database_mapping.py`: This module maps and rewrites database UUIDs between source and target Superset instances.
-- `src/ol_superset/ol_superset/lib/role_management.py`: This module synchronizes dataset access permissions between a governance policy file and a Superset instance.
-- `src/ol_superset/ol_superset/lib/superset_api.py`: This module provides a client for authenticating with and interacting programmatically with a Superset instance's API.
+- `src/ol_superset/ol_superset/lib/dbt_registry.py`: This module builds a registry of dbt models by parsing YAML schema files to map model names to their expected database schemas and layers.
+- `src/ol_superset/ol_superset/lib/role_management.py`: This module synchronizes dataset access permissions between a governance policy and a Superset instance.
+- `src/ol_superset/ol_superset/lib/superset_api.py`: This module provides a client for interacting with a Superset instance's API, handling authentication and configuration.
 - `src/ol_superset/ol_superset/lib/utils.py`: This module provides utilities for managing and interacting with Superset assets and CLI commands.
 - `src/ol_superset/policies/ol_rls_policies.json`: (purpose pending)
 - `src/ol_superset/scripts/README.md`: (purpose pending)
 - `src/ol_superset/sync_config.yml`: (purpose pending)
+- `src/ol_superset/tests/__init__.py`: This module provides test utilities and fixtures for the ol_superset application.
+- `src/ol_superset/tests/test_asset_index.py`: This module tests the generation and accuracy of an asset index by verifying the extraction and counting of dataset columns, including calculated and virtual columns, from structured YAML definitions.
+- `src/ol_superset/tests/test_dbt_registry.py`: This module tests the functionality of a dbt registry builder and SQL table reference extractor.
+- `src/ol_superset/tests/test_impact.py`: This module tests the logic for analyzing dependencies and impacts among datasets, charts, and dashboards.

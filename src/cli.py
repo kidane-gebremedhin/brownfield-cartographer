@@ -63,8 +63,8 @@ def _add_analyze(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]
     p.add_argument(
         "--output-dir",
         dest="output_dir",
-        default=None,
-        help="Directory for artifacts (default: .cartography under the repo root).",
+        default="./cartography",
+        help="Directory for artifacts (default: ./cartography).",
     )
     p.add_argument(
         "--branch",
@@ -91,8 +91,8 @@ def _add_surveyor(subparsers: argparse._SubParsersAction[argparse.ArgumentParser
     p.add_argument(
         "--output-dir",
         dest="output_dir",
-        default=None,
-        help="Directory for artifacts (default: .cartography under the repo root).",
+        default="./cartography",
+        help="Directory for artifacts (default: ./cartography).",
     )
     p.add_argument(
         "--branch",

@@ -34,7 +34,7 @@ class ChangeSet:
 
 
 def load_manifest(artifact_dir: Path | str) -> dict[str, str] | None:
-    """Load prior file hashes from .cartography/manifest.json. Returns None if missing or invalid."""
+    """Load prior file hashes from cartography/manifest.json. Returns None if missing or invalid."""
     path = Path(artifact_dir).resolve() / MANIFEST_FILENAME
     if not path.exists():
         return None
@@ -63,9 +63,9 @@ def get_current_hashes(
     *,
     exclude_dirs: frozenset[str] | None = None,
 ) -> dict[str, str]:
-    """Return repo-relative path -> SHA-256 content hash. Excludes paths under exclude_dirs (e.g. .cartography)."""
+    """Return repo-relative path -> SHA-256 content hash. Excludes paths under exclude_dirs (e.g. cartography)."""
     if exclude_dirs is None:
-        exclude_dirs = frozenset({".cartography"})
+        exclude_dirs = frozenset({"cartography"})
     files = discover_files(repo_root)
     out = {}
     for f in files:

@@ -1,6 +1,14 @@
 {
   "directed": true,
-  "edges": [],
+  "edges": [
+    {
+      "attrs": {
+        "edge_type": "path_reference"
+      },
+      "source": "src/ol_superset/tests/test_impact.py",
+      "target": "README.md"
+    }
+  ],
   "nodes": [
     {
       "attrs": {},
@@ -3836,6 +3844,10 @@
     },
     {
       "attrs": {},
+      "id": "src/ol_superset/assets/charts/Learner_Problem_Engagement_test_37f77897-e846-49f9-835b-af81277e5f4b.yaml"
+    },
+    {
+      "attrs": {},
       "id": "src/ol_superset/assets/charts/Learner_Video_Engagement_3c5fdc59-85d7-484b-9fdf-170336c8a4c0.yaml"
     },
     {
@@ -4108,6 +4120,10 @@
     },
     {
       "attrs": {},
+      "id": "src/ol_superset/assets/charts/test-superset-new-workflow_89fb36ad-5554-4959-8956-dc073036fb19.yaml"
+    },
+    {
+      "attrs": {},
       "id": "src/ol_superset/assets/charts/xPRO_Product_List_-_Standard_Products_Only_244158fe-79de-4ad8-bc53-f82ef3f32ffa.yaml"
     },
     {
@@ -4180,6 +4196,14 @@
     },
     {
       "attrs": {},
+      "id": "src/ol_superset/assets/dashboards/untitled_dashboard_c7ef251f-7c0a-4150-bb29-51ec41446550.yaml"
+    },
+    {
+      "attrs": {},
+      "id": "src/ol_superset/assets/dashboards/untitled_dashboard_e3c3760d-9ddc-4257-84b0-bb10a604a178.yaml"
+    },
+    {
+      "attrs": {},
       "id": "src/ol_superset/assets/dashboards/xPro_Reference_Dashboard_45b6c06a-1e2d-43d3-8b98-a95b82b375d5.yaml"
     },
     {
@@ -4213,6 +4237,10 @@
     {
       "attrs": {},
       "id": "src/ol_superset/assets/datasets/Trino/Enrollment_Activity_Counts_Dataset_a9301703-0ac1-4eb7-a409-f65da5d8cba1.yaml"
+    },
+    {
+      "attrs": {},
+      "id": "src/ol_superset/assets/datasets/Trino/Enrollment_Activity_Counts_Dataset_f33af055-8200-464d-bd40-fee6194e0fd4.yaml"
     },
     {
       "attrs": {},
@@ -4256,6 +4284,10 @@
     },
     {
       "attrs": {},
+      "id": "src/ol_superset/assets/datasets/Trino/combined_video_engagements_counts_report_f0b79172-5047-402f-b872-42433fc97548.yaml"
+    },
+    {
+      "attrs": {},
       "id": "src/ol_superset/assets/datasets/Trino/dim_course_content_466da6d4-e870-4afd-866a-4c95044400b6.yaml"
     },
     {
@@ -4277,6 +4309,10 @@
     {
       "attrs": {},
       "id": "src/ol_superset/assets/datasets/Trino/dim_video_135f82ef-b81b-4f5b-8f82-ed299675e618.yaml"
+    },
+    {
+      "attrs": {},
+      "id": "src/ol_superset/assets/datasets/Trino/discussion_detail_report_ec0fc17c-ebca-44ae-94ae-2072da856d24.yaml"
     },
     {
       "attrs": {},
@@ -4448,6 +4484,10 @@
     },
     {
       "attrs": {},
+      "id": "src/ol_superset/assets/datasets/Trino/mitxonline_course_engagements_daily_report_91b8255f-044e-4162-9b42-f99143202ed4.yaml"
+    },
+    {
+      "attrs": {},
       "id": "src/ol_superset/assets/datasets/Trino/mitxonline_video_engagements_w_video_counts_0514985b-ff21-490b-a34e-25ae356da7e9.yaml"
     },
     {
@@ -4457,6 +4497,18 @@
     {
       "attrs": {},
       "id": "src/ol_superset/assets/datasets/Trino/page_engagement_views_c3182341-5246-40c2-8f04-885369c38093.yaml"
+    },
+    {
+      "attrs": {},
+      "id": "src/ol_superset/assets/datasets/Trino/page_engagement_views_report_d7152969-b9b4-4305-b2c4-5f2dd922302a.yaml"
+    },
+    {
+      "attrs": {},
+      "id": "src/ol_superset/assets/datasets/Trino/problem_engagement_detail_report_c6578429-599c-4cfa-9ad2-a1081ecc91f0.yaml"
+    },
+    {
+      "attrs": {},
+      "id": "src/ol_superset/assets/datasets/Trino/program_enrollment_with_user_report_378cfe46-2614-42e3-82f3-f161aa37e66d.yaml"
     },
     {
       "attrs": {},
@@ -4532,6 +4584,14 @@
     },
     {
       "attrs": {},
+      "id": "src/ol_superset/ol_superset/commands/impact.py"
+    },
+    {
+      "attrs": {},
+      "id": "src/ol_superset/ol_superset/commands/lineage.py"
+    },
+    {
+      "attrs": {},
       "id": "src/ol_superset/ol_superset/commands/lock.py"
     },
     {
@@ -4560,7 +4620,15 @@
     },
     {
       "attrs": {},
+      "id": "src/ol_superset/ol_superset/lib/asset_index.py"
+    },
+    {
+      "attrs": {},
       "id": "src/ol_superset/ol_superset/lib/database_mapping.py"
+    },
+    {
+      "attrs": {},
+      "id": "src/ol_superset/ol_superset/lib/dbt_registry.py"
     },
     {
       "attrs": {},
@@ -4585,6 +4653,22 @@
     {
       "attrs": {},
       "id": "src/ol_superset/sync_config.yml"
+    },
+    {
+      "attrs": {},
+      "id": "src/ol_superset/tests/__init__.py"
+    },
+    {
+      "attrs": {},
+      "id": "src/ol_superset/tests/test_asset_index.py"
+    },
+    {
+      "attrs": {},
+      "id": "src/ol_superset/tests/test_dbt_registry.py"
+    },
+    {
+      "attrs": {},
+      "id": "src/ol_superset/tests/test_impact.py"
     }
   ]
 }

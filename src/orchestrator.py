@@ -100,7 +100,7 @@ def run_analyze(opts: AnalyzeOptions) -> AnalyzeResult:
         repo_root = repo.root
         logger.info("Loaded repository at %s (temporary=%s)", repo_root, repo.is_temporary)
 
-        out_dir = Path(opts.output_dir) if opts.output_dir is not None else repo_root / ".cartography"
+        out_dir = Path(opts.output_dir) if opts.output_dir is not None else repo_root / "cartography"
         artifact_dir = out_dir.resolve()
         current_hashes = get_current_hashes(repo_root)
         prior_hashes = load_manifest(artifact_dir)
@@ -197,7 +197,7 @@ def run_surveyor_only(opts: SurveyorOnlyOptions) -> SurveyorOnlyResult:
         repo_root = repo.root
         logger.info("Loaded repository at %s (temporary=%s)", repo_root, repo.is_temporary)
 
-        out_dir = Path(opts.output_dir) if opts.output_dir is not None else repo_root / ".cartography"
+        out_dir = Path(opts.output_dir) if opts.output_dir is not None else repo_root / "cartography"
         artifact_dir = out_dir.resolve()
         artifact_dir.mkdir(parents=True, exist_ok=True)
 

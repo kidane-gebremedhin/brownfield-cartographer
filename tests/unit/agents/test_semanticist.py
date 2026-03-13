@@ -5,9 +5,12 @@ from pathlib import Path
 import networkx as nx
 
 from agents.semanticist import (
+    CriticalNodeScore,
     extract_module_docstring,
     generate_purpose_statement,
     run_semanticist,
+    score_critical_candidates,
+    _synthesize_day_one_fallback,
 )
 from agents.surveyor import SurveyorModuleMetrics, SurveyorResult
 from agents.hydrologist import HydrologistResult
@@ -132,3 +135,57 @@ def test_budget_exhausted_skips_purpose(tmp_path):
     result = run_semanticist(tmp_path, surveyor, hydro, llm, budget=budget)
     assert isinstance(result.purpose_statements, dict)
     assert isinstance(result.day_one_markdown, str)
+
+
+def test_score_critical_candidates_ignores_empty_and_unresolved_ids():
+    g = nx.DiGraph()
+    # Empty and whitespace ids should be ignored
+    g.add_node("", node_type="dataset")
+    g.add_node("   ", node_type="dataset")
+    # Unresolved placeholder should be ignored
+    g.add_node("unresolved_table", node_type="unresolved")
+    # A trivial sink-only node (no edges) should be ignored
+    g.add_node("lonely_sink", node_type="dataset")
+
+    surveyor = _fake_surveyor_result([])
+    scored = score_critical_candidates(g, surveyor)
+
+    assert scored == []
+
+
+def test_score_critical_candidates_skips_pure_sinks_and_picks_internal():
+    g = nx.DiGraph()
+    # Lineage: src -> mid -> sink
+    g.add_node("src", node_type="dataset")
+    g.add_node("mid", node_type="dataset")
+    g.add_node("sink", node_type="dataset")
+    g.add_edge("src", "mid")
+    g.add_edge("mid", "sink")
+
+    surveyor = _fake_surveyor_result([])
+    scored = score_critical_candidates(g, surveyor)
+
+    # Only 'mid' has both upstream and downstream reach, so it should be first
+    assert scored
+    assert isinstance(scored[0], CriticalNodeScore)
+    assert scored[0].node_id == "mid"
+
+
+def test_day_one_fallback_uses_internal_node_not_trivial_sink():
+    g = nx.DiGraph()
+    # Graph where previous logic would have chosen 'sink' and produced a 1-node radius.
+    g.add_node("src", node_type="dataset")
+    g.add_node("mid", node_type="dataset")
+    g.add_node("sink", node_type="dataset")
+    g.add_edge("src", "mid")
+    g.add_edge("mid", "sink")
+
+    surveyor = _fake_surveyor_result([])
+    hydro = HydrologistResult(graph=g)
+
+    markdown = _synthesize_day_one_fallback(surveyor, hydro)
+
+    # The blast radius answer should explicitly name 'mid' as the critical node
+    assert "Critical module or transformation: `mid`." in markdown
+    # And the blast radius should be non-trivial (mid can reach sink, so at least 1 node)
+    assert "Downstream blast radius (excluding the node itself): 1 nodes." in markdown
