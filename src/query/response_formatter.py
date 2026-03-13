@@ -8,9 +8,11 @@ from __future__ import annotations
 
 from query.tools import (
     BlastRadiusResult,
+    EdgeCitation,
     ImplementationMatch,
     LineageResult,
     ModuleExplanation,
+    UpstreamSourcesResult,
 )
 
 
@@ -44,6 +46,52 @@ def format_implementation_matches(matches: list[ImplementationMatch]) -> str:
     return "\n".join(lines)
 
 
+def _citation_str(e: EdgeCitation) -> str:
+    """Format file:line citation for an edge."""
+    if e.source_file and e.line_start is not None:
+        if e.line_end is not None and e.line_end != e.line_start:
+            return f"{e.source_file}:{e.line_start}-{e.line_end}"
+        return f"{e.source_file}:{e.line_start}"
+    return e.source_file or "(no location)"
+
+
+def format_upstream_sources_answer(result: UpstreamSourcesResult) -> str:
+    """Format the answer to: What upstream sources feed this output dataset?
+
+    Shows DataLineageGraph upstream traversal with file:line citations per edge.
+    """
+    lines = []
+    lines.append("What upstream sources feed this output dataset?")
+    lines.append("")
+    lines.append(f"Output dataset: {result.dataset}")
+    lines.append("")
+    lines.append("--- Evidence: DataLineageGraph upstream traversal (static analysis), source=lineage_graph.json ---")
+    lines.append(result.evidence)
+    lines.append("")
+    lines.append("Upstream nodes (sources that feed this dataset):")
+    # Exclude the dataset itself from "upstream" list for clarity
+    upstream_only = [n for n in result.upstream_nodes if n != result.dataset]
+    if not upstream_only:
+        lines.append("  (none)")
+    else:
+        for n in upstream_only[:100]:
+            lines.append(f"  • {n}")
+        if len(upstream_only) > 100:
+            lines.append(f"  ... and {len(upstream_only) - 100} more")
+    lines.append("")
+    lines.append("Edges with file:line citations:")
+    if not result.edges_with_citations:
+        lines.append("  (none)")
+    else:
+        for e in result.edges_with_citations[:80]:
+            loc = _citation_str(e)
+            tt = f"  [{e.transformation_type}]" if e.transformation_type else ""
+            lines.append(f"  {e.source} → {e.target}{tt}  @ {loc}")
+        if len(result.edges_with_citations) > 80:
+            lines.append(f"  ... and {len(result.edges_with_citations) - 80} more")
+    return "\n".join(lines)
+
+
 def format_lineage_result(result: LineageResult) -> str:
     """Format trace_lineage result with evidence (source, method, confidence)."""
     lines = []
@@ -59,19 +107,25 @@ def format_lineage_result(result: LineageResult) -> str:
         lines.append(f"  ... and {len(result.nodes) - 50} more")
     if result.edges:
         lines.append("")
-        lines.append("Edges (sample):")
+        lines.append("Edges (sample) [transformation_type, source_file:line_range]:")
         for u, v, attrs in result.edges[:20]:
             edge_type = attrs.get("edge_type", "")
-            lines.append(f"  {u} → {v}" + (f"  [{edge_type}]" if edge_type else ""))
+            tt = attrs.get("transformation_type", "")
+            sf = attrs.get("source_file", "")
+            ls, le = attrs.get("line_start"), attrs.get("line_end")
+            loc = f"{sf}:{ls}-{le}" if sf and ls is not None else (sf or "")
+            lines.append(f"  {u} → {v}" + (f"  [{edge_type}]" if edge_type else "") + (f"  {tt}" if tt else "") + (f"  @ {loc}" if loc else ""))
         if len(result.edges) > 20:
             lines.append(f"  ... and {len(result.edges) - 20} more")
     return "\n".join(lines)
 
 
 def format_blast_radius_result(result: BlastRadiusResult) -> str:
-    """Format blast_radius result with evidence (source, method, confidence)."""
+    """Format blast_radius result: dependency graph of what would break if this module/dataset changed."""
     lines = []
-    lines.append(f"Blast radius from: {result.start}")
+    lines.append("What would break if this module/dataset changed its interface?")
+    lines.append("")
+    lines.append(f"Module/dataset: {result.start}")
     lines.append("")
     lines.append("--- Evidence: method=static analysis (lineage graph), source=lineage_graph.json ---")
     lines.append(result.evidence)

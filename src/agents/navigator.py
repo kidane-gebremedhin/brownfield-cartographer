@@ -15,6 +15,7 @@ from query.response_formatter import (
     format_implementation_matches,
     format_lineage_result,
     format_module_explanation,
+    format_upstream_sources_answer,
 )
 from query.tools import (
     BlastRadiusResult,
@@ -25,6 +26,7 @@ from query.tools import (
     explain_module as tool_explain_module,
     find_implementation as tool_find_implementation,
     trace_lineage as tool_trace_lineage,
+    upstream_sources_for_dataset as tool_upstream_sources_for_dataset,
 )
 
 
@@ -54,6 +56,32 @@ class Navigator:
             max_depth=max_depth,
         )
         return format_lineage_result(result)
+
+    def ask(self, question: str, *, about: str | None = None, max_depth: int = 10) -> str:
+        """Answer a typed question: routes to lineage-upstream or blast-radius.
+
+        Example: nav.ask('What upstream sources feed this output dataset?', about='sql:path/to/model.sql')
+        """
+        from query.tools import ask_question
+        answer, _ = ask_question(
+            self.artifact_dir,
+            question,
+            about=about,
+            max_depth=max_depth,
+        )
+        return answer
+
+    def upstream_sources(self, dataset: str, *, max_depth: int = 10) -> str:
+        """Answer: What upstream sources feed this output dataset?
+
+        Returns DataLineageGraph upstream traversal with file:line citations per edge.
+        """
+        result = tool_upstream_sources_for_dataset(
+            self.artifact_dir,
+            dataset,
+            max_depth=max_depth,
+        )
+        return format_upstream_sources_answer(result)
 
     def blast_radius(self, module_or_dataset: str, *, max_depth: int = 5) -> str:
         """Return formatted downstream impact set with evidence."""

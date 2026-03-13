@@ -2,7 +2,9 @@
 
 Supports:
 - dbt schema/config YAML (models, sources)
-- emits configuration edges / topology hints for hydrologist
+- Airflow DAG definitions (tasks, dependencies)
+- Prefect flow definitions (task dependencies)
+- Emits configuration edges / topology hints for hydrologist
 
 This is best-effort and should never crash the pipeline.
 """
@@ -20,10 +22,12 @@ logger = logging.getLogger(__name__)
 class ConfigEdge(BaseModel):
     """Represents a config-derived relationship (hint)."""
 
-    kind: str = Field(description="CONFIGURES or DEPENDS_ON")
-    source: str = Field(description="Config entity")
+    kind: str = Field(description="CONFIGURES or DEPENDS_ON or AIRFLOW_TASK or PREFECT_TASK")
+    source: str = Field(description="Config entity (task/model/source name)")
     target: str = Field(description="Target entity")
     raw: dict[str, Any] | None = Field(default=None, description="Raw YAML fragment")
+    line_start: int | None = Field(default=None, ge=1)
+    line_end: int | None = Field(default=None, ge=1)
 
 
 class ConfigParseResult(BaseModel):
@@ -32,7 +36,7 @@ class ConfigParseResult(BaseModel):
     error: str | None = None
 
 
-def parse_yaml_config(yaml_text: str) -> ConfigParseResult:
+def parse_yaml_config(yaml_text: str, *, source_path: str | None = None) -> ConfigParseResult:
     try:
         import yaml
     except Exception as e:
@@ -72,6 +76,39 @@ def parse_yaml_config(yaml_text: str) -> ConfigParseResult:
                 if isinstance(nodes, list):
                     for n in nodes:
                         if isinstance(n, str):
-                            edges.append(ConfigEdge(kind="DEPENDS_ON", source=f"model:{name}", target=n, raw=m))
+                            edges.append(ConfigEdge(kind="DEPENDS_ON", source=n, target=name, raw=m))
+
+    # Airflow DAG: tasks with task_id and dependencies (depends_on or upstream_task_ids)
+    if isinstance(data, dict):
+        dag_id = data.get("dag_id") or (data.get("dag", {}) or {}).get("id") if isinstance(data.get("dag"), dict) else None
+        tasks = data.get("tasks")
+        if not tasks and "dag" in data and isinstance(data["dag"], dict):
+            tasks = data["dag"].get("tasks")
+        if isinstance(tasks, list) and tasks:
+            task_ids = []
+            for t in tasks:
+                if isinstance(t, dict) and t.get("task_id"):
+                    task_ids.append(t["task_id"])
+            for t in tasks:
+                if not isinstance(t, dict) or not t.get("task_id"):
+                    continue
+                tid = t["task_id"]
+                # Downstream dependency: tid depends on upstream_task_ids
+                for dep in t.get("upstream_task_ids") or t.get("depends_on") or []:
+                    if isinstance(dep, str) and dep in task_ids:
+                        edges.append(ConfigEdge(kind="AIRFLOW_TASK", source=dep, target=tid, raw=t))
+                # Operator often references table/dataset via params or template
+                if dag_id:
+                    edges.append(ConfigEdge(kind="AIRFLOW_TASK", source=f"dag:{dag_id}", target=tid, raw=t))
+
+    # Prefect: flow with task dependencies (task mapping or run order)
+    if isinstance(data, dict):
+        flow_name = data.get("name") or data.get("flow_name")
+        tasks_prefect = data.get("tasks") or data.get("task_definitions")
+        if isinstance(tasks_prefect, list) and flow_name:
+            for t in tasks_prefect:
+                if isinstance(t, dict) and t.get("name"):
+                    tn = t["name"]
+                    edges.append(ConfigEdge(kind="PREFECT_TASK", source=f"flow:{flow_name}", target=tn, raw=t))
 
     return ConfigParseResult(edges=edges)

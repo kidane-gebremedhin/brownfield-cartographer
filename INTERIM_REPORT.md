@@ -72,7 +72,7 @@ The Brownfield Cartographer is a multi-agent codebase intelligence system. The p
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                       AGENT 3: SEMANTICIST (optional)                             │
 │  LLM-powered: purpose statements, doc drift, domain clustering, Day-One answers   │
-│  Requires: OPENROUTER_API_KEY and/or DEEPSEEK_API_KEY                             │
+│  Requires: DEEPSEEK_API_KEY in .env                                                │
 │  Outputs: purpose_statements, drift, domains, day_one_markdown                    │
 └─────────────────────────────────────────────────────────────────────────────────┘
                                         │ SemanticistResult
@@ -102,7 +102,7 @@ The Brownfield Cartographer is a multi-agent codebase intelligence system. The p
 
 **Hydrologist** constructs the lineage graph from Python, SQL, YAML, and notebook sources. Python dataflow analyzer finds `pandas.read_csv`, `read_sql`, SQLAlchemy, PySpark patterns. SQL lineage uses sqlglot with dialect support (postgres, bigquery, snowflake, duckdb) and preserves dbt `ref()`/`source()` when full parse fails. YAML/DAG config parser extracts dbt schema and pipeline topology. All flows merge into a single DiGraph with node types (dataset, transformation, unresolved) and edge types (consumes, produces, configures, depends_on). Unresolved references are retained explicitly. Output: `HydrologistResult(graph)` with helper methods for sources, sinks, blast radius.
 
-**Semanticist** runs only when an LLM provider is configured (via `OPENROUTER_API_KEY` and/or `DEEPSEEK_API_KEY` in `.env`). It consumes Surveyor and Hydrologist outputs. For each Python module it generates a code-grounded purpose statement (not from docstring), then classifies documentation drift (aligned, stale, contradictory, insufficient). Purpose statements are embedded and clustered into 5–8 domains via k-means; each cluster gets an LLM-generated label. A synthesis prompt produces the five Day-One answers with evidence citations. Tiered model selection: bulk tier (Gemini Flash / Mistral) for purpose/drift/cluster; synthesis tier (DeepSeek / OpenAI) for Day-One answers.
+**Semanticist** runs only when an LLM provider is configured (via `DEEPSEEK_API_KEY` in `.env`). It consumes Surveyor and Hydrologist outputs. For each Python module it generates a code-grounded purpose statement (not from docstring), then classifies documentation drift (aligned, stale, contradictory, insufficient). Purpose statements are embedded and clustered into 5–8 domains via k-means; each cluster gets an LLM-generated label. A synthesis prompt produces the five Day-One answers with evidence citations. All LLM calls use the DeepSeek API (bulk and synthesis tiers configurable via CARTOGRAPHER_DEEPSEEK_MODEL and CARTOGRAPHER_SYNTHESIS_MODEL).
 
 **Archivist** writes all artifacts deterministically. `CODEBASE.md` includes Architecture Overview, Critical Path (top 5 PageRank), Data Sources & Sinks, Known Debt (SCCs, dead-code candidates, doc drift), High-Velocity Files, and Module Purpose Index. `onboarding_brief.md` contains Day-One answers, evidence citations, confidence notes, and known unknowns. JSON graphs use a stable schema. `cartography_trace.jsonl` logs agent actions with evidence and confidence. Pyvis HTML visualizations are generated when available.
 

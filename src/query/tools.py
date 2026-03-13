@@ -7,11 +7,14 @@ CODEBASE.md / onboarding_brief.md. No full pipeline re-run.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
 import networkx as nx
+
+QueryIntent = Literal["lineage-upstream", "blast-radius"]
 
 
 @dataclass
@@ -42,12 +45,121 @@ class BlastRadiusResult:
 
 
 @dataclass
+class EdgeCitation:
+    """One edge in the lineage traversal with file:line evidence."""
+
+    source: str
+    target: str
+    source_file: str | None
+    line_start: int | None
+    line_end: int | None
+    transformation_type: str | None
+
+
+@dataclass
+class UpstreamSourcesResult:
+    """Result of 'What upstream sources feed this output dataset?'"""
+
+    dataset: str
+    upstream_nodes: list[str]
+    edges_with_citations: list[EdgeCitation]
+    evidence: str = ""
+
+
+@dataclass
 class ModuleExplanation:
     path: str
     graph_section: str
     semantic_section: str
     line_range: tuple[int, int] | None = None
     confidence: float = 1.0
+
+
+def classify_lineage_question(question: str) -> QueryIntent | None:
+    """Classify a natural language question into lineage-upstream or blast-radius."""
+    q = question.lower().strip()
+    # Upstream sources / lineage
+    if "upstream" in q and ("feed" in q or "source" in q or "depend" in q):
+        return "lineage-upstream"
+    if "what" in q and "feed" in q and ("dataset" in q or "output" in q):
+        return "lineage-upstream"
+    if "sources feed" in q or "feeds" in q:
+        return "lineage-upstream"
+    # Blast radius / what would break
+    if "blast" in q and "radius" in q:
+        return "blast-radius"
+    if "would break" in q or "will break" in q:
+        return "blast-radius"
+    if "break if" in q or "affected" in q and "change" in q:
+        return "blast-radius"
+    if "dependency graph" in q and "break" in q:
+        return "blast-radius"
+    return None
+
+
+def extract_target_from_question(question: str, intent: QueryIntent) -> str | None:
+    """Try to extract the dataset/module target from a typed question."""
+    q = question.strip()
+    # Look for explicit node ID patterns
+    sql_match = re.search(r"sql:[^\s\'\"\?]+", q)
+    if sql_match:
+        return sql_match.group(0).rstrip("?.!")
+    dbt_match = re.search(r"__[\w_]+__", q)
+    if dbt_match:
+        return dbt_match.group(0)
+    if intent == "lineage-upstream":
+        # "What upstream sources feed X?" - X after "feed"
+        m = re.search(r"feed\s+(?:this\s+output\s+dataset\s+)?['\"]?([^\s\'\"\?]+)['\"]?", q, re.I)
+        if m and m.group(1) not in ("this", "that", "it"):
+            return m.group(1).rstrip("?.!")
+    if intent == "blast-radius":
+        # "What would break if X changed?" - X between "if " and " changed"
+        m = re.search(r"if\s+([^\s]+)\s+changed", q, re.I)
+        if m:
+            return m.group(1).rstrip("?.!")
+        m = re.search(r"(?:for|of)\s+([^\s\?]+)", q, re.I)
+        if m and m.group(1).lower() not in ("this", "that", "it", "module", "dataset"):
+            return m.group(1).rstrip("?.!")
+    return None
+
+
+def ask_question(
+    artifact_dir: Path | str,
+    question: str,
+    *,
+    about: str | None = None,
+    max_depth: int = 10,
+) -> tuple[str, int]:
+    """Answer a typed question (lineage-upstream or blast-radius). Returns (formatted_answer, exit_code)."""
+    intent = classify_lineage_question(question)
+    target = about or (extract_target_from_question(question, intent) if intent else None)
+
+    if not intent:
+        return (
+            "I don't recognize this question. Try:\n"
+            "  • 'What upstream sources feed this output dataset?' (with --about <dataset_id>)\n"
+            "  • 'What would break if this module changed?' (with --about <module_id>)\n"
+            "Provide the dataset/module ID with --about <id>.",
+            1,
+        )
+    if not target or not target.strip():
+        return (
+            f"Question classified as: {intent}.\n"
+            "Provide the dataset/module node ID with --about <id>.\n"
+            "Example: cartographer ask ./cartography \"What upstream sources feed this output dataset?\" --about \"sql:path/to/model.sql\"",
+            1,
+        )
+
+    artifact_dir = Path(artifact_dir).resolve()
+    if intent == "lineage-upstream":
+        from query.response_formatter import format_upstream_sources_answer
+        result = upstream_sources_for_dataset(artifact_dir, target, max_depth=max_depth)
+        return format_upstream_sources_answer(result), 0
+    if intent == "blast-radius":
+        from query.response_formatter import format_blast_radius_result
+        result = blast_radius(artifact_dir, target, max_depth=max_depth)
+        return format_blast_radius_result(result), 0
+    return ("Unknown intent.", 1)
 
 
 def _load_graph(artifact_dir: Path, name: str) -> nx.DiGraph | None:
@@ -141,6 +253,71 @@ def find_implementation(
                     pass
 
     return out[:max_results]
+
+
+def upstream_sources_for_dataset(
+    artifact_dir: Path | str,
+    dataset: str,
+    *,
+    max_depth: int = 10,
+) -> UpstreamSourcesResult:
+    """Lineage query: What upstream sources feed this output dataset?
+
+    Performs DataLineageGraph traversal (upstream) and returns nodes plus edges
+    with file:line citations from edge attributes (source_file, line_start, line_end).
+    """
+    artifact_dir = Path(artifact_dir).resolve()
+    lg = load_lineage_graph(artifact_dir)
+    if not lg:
+        return UpstreamSourcesResult(
+            dataset=dataset,
+            upstream_nodes=[],
+            edges_with_citations=[],
+            evidence="Lineage graph not found. Run 'cartographer analyze' first.",
+        )
+    if dataset not in lg:
+        return UpstreamSourcesResult(
+            dataset=dataset,
+            upstream_nodes=[],
+            edges_with_citations=[],
+            evidence=f"Dataset '{dataset}' not in lineage graph.",
+        )
+
+    visited = {dataset}
+    frontier = {dataset}
+    for _ in range(max_depth):
+        nxt = set()
+        for n in frontier:
+            for nb in lg.predecessors(n):
+                if nb not in visited:
+                    visited.add(nb)
+                    nxt.add(nb)
+        if not nxt:
+            break
+        frontier = nxt
+
+    edges_with_citations: list[EdgeCitation] = []
+    for u, v in lg.edges():
+        if u in visited and v in visited:
+            attrs = dict(lg.edges[u, v])
+            edges_with_citations.append(
+                EdgeCitation(
+                    source=u,
+                    target=v,
+                    source_file=attrs.get("source_file"),
+                    line_start=attrs.get("line_start"),
+                    line_end=attrs.get("line_end"),
+                    transformation_type=attrs.get("transformation_type"),
+                )
+            )
+
+    upstream_nodes = sorted(visited)
+    return UpstreamSourcesResult(
+        dataset=dataset,
+        upstream_nodes=upstream_nodes,
+        edges_with_citations=edges_with_citations,
+        evidence=f"DataLineageGraph upstream traversal (max_depth={max_depth}). {len(upstream_nodes)} nodes.",
+    )
 
 
 def trace_lineage(

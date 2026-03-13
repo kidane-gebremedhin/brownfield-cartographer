@@ -4,7 +4,7 @@ from llm.prompts import render_purpose_statement, render_drift_classification, r
 def test_render_purpose_statement():
     out = render_purpose_statement(module_path="src/foo.py", loc=50, imports="os", functions="main", classes="Bar", bases="Base", source_preview="def main(): pass")
     assert "src/foo.py" in out
-    assert "Purpose (one sentence):" in out
+    assert "Purpose" in out and "one sentence" in out
 
 def test_render_drift_classification():
     out = render_drift_classification(purpose="Handles auth.", docstring="Auth utilities.")

@@ -8,7 +8,11 @@ Builds the structural analysis layer:
 - runs PageRank and SCC detection
 - flags conservative dead-code candidates
 
-Design is extensible for SQL/YAML/JS/TS later via language_router.
+Python modules get full structural parsing; SQL/YAML/JSON/markdown/notebooks are
+indexed as first-class modules with language, LOC, and git velocity so that
+polyglot data engineering codebases (Python + SQL + YAML + notebooks) appear in
+the module graph, even when we do not yet extract fine-grained imports for
+those languages.
 """
 
 from __future__ import annotations
@@ -52,14 +56,20 @@ def run_surveyor(repo_root: Path | str) -> SurveyorResult:
     root = Path(repo_root).resolve()
     files = discover_files(root)
 
-    # Build module set (only python for structural parse right now)
-    python_files = [f for f in files if f.extension == '.py']
-    module_paths = {f.path for f in python_files}
+    # Build module set:
+    # - Python files get full structural parse and import edges.
+    # - Other discovered files (SQL/YAML/JSON/markdown/notebooks) become
+    #   first-class modules with language + LOC + git velocity.
+    # all_module_paths: every discovered file (for cross-language path resolution).
+    # python_paths: only .py (for import resolution).
+    python_files = [f for f in files if f.extension == ".py"]
+    python_paths = {f.path for f in python_files}
+    all_module_paths = {f.path for f in files}
 
     g = nx.DiGraph()
     modules: dict[str, SurveyorModuleMetrics] = {}
 
-    # Parse modules
+    # Parse Python modules
     facts_by_path = {}
     for f in python_files:
         try:
@@ -86,12 +96,44 @@ def run_surveyor(repo_root: Path | str) -> SurveyorResult:
         )
         g.add_node(f.path)
 
-    # Add edges (best-effort import resolution)
+    # Index non-Python files as modules so that polyglot repos (SQL/YAML/etc.)
+    # appear in the module graph and metrics, even if we do not yet extract
+    # fine-grained imports for them.
+    python_paths = {f.path for f in python_files}
+    for f in files:
+        if f.path in python_paths:
+            continue
+        lang = get_language(f.path)
+        # Approximate LOC from bytes content.
+        loc = f.content.count(b"\n")
+        if f.content and not f.content.endswith(b"\n"):
+            loc += 1
+        v30, v90 = change_velocity_30_90(root, f.path)
+        modules[f.path] = SurveyorModuleMetrics(
+            path=f.path,
+            language=lang,
+            loc=loc,
+            complexity_score=0.0,
+            change_velocity_30d=v30,
+            change_velocity_90d=v90,
+            public_api_count=0,
+            is_dead_code_candidate=False,
+        )
+        g.add_node(f.path)
+
+    # Add edges: Python import resolution (Python -> Python)
     for path, facts in facts_by_path.items():
         for imp in facts.imports:
-            target = _resolve_import_to_path(imp.module, module_paths)
+            target = _resolve_import_to_path(imp.module, python_paths)
             if target:
-                g.add_edge(path, target)
+                g.add_edge(path, target, edge_type="import")
+
+    # Add edges: path-like string references (Python -> any discovered file)
+    for path, facts in facts_by_path.items():
+        for ref in _path_like_strings(facts.string_literals):
+            target = _resolve_path_reference(ref, path, all_module_paths)
+            if target and target != path and not g.has_edge(path, target):
+                g.add_edge(path, target, edge_type="path_reference")
 
     # Graph algorithms
     pr: dict[str, float] = {}
@@ -120,12 +162,64 @@ def _resolve_import_to_path(module: str, module_paths: set[str]) -> str | None:
     if not module:
         return None
     candidates = [
-        module.replace('.', '/') + '.py',
-        module.replace('.', '/') + '/__init__.py',
+        module.replace(".", "/") + ".py",
+        module.replace(".", "/") + "/__init__.py",
     ]
     for c in candidates:
         if c in module_paths:
             return c
+    return None
+
+
+# Extensions we treat as path-like when seen in string literals (cross-language refs).
+_PATH_EXTENSIONS = (".py", ".sql", ".yaml", ".yml", ".json", ".md", ".ipynb")
+
+
+def _path_like_strings(literals: list[str]) -> list[str]:
+    """Filter string literals to those that look like file paths (for reference resolution)."""
+    out: list[str] = []
+    for s in literals:
+        if not s or len(s) > 512:
+            continue
+        # Skip URLs and flags
+        if "://" in s or s.startswith("--") or s.startswith("-"):
+            continue
+        s_norm = s.replace("\\", "/").strip()
+        if not s_norm:
+            continue
+        # Path-like: contains a path separator, or has a known file extension
+        if "/" in s_norm or s_norm.endswith(_PATH_EXTENSIONS):
+            out.append(s_norm)
+    return out
+
+
+def _resolve_path_reference(ref: str, source_path: str, all_module_paths: set[str]) -> str | None:
+    """Resolve a path-like string (relative or repo-root) to a discovered module path."""
+    ref = ref.replace("\\", "/").strip().lstrip("./")
+    if not ref:
+        return None
+    # Normalize redundant parts (e.g. "models/../models/foo.sql" -> "models/foo.sql")
+    parts: list[str] = []
+    for p in ref.split("/"):
+        if p in ("", "."):
+            continue
+        if p == "..":
+            if parts:
+                parts.pop()
+            continue
+        parts.append(p)
+    ref = "/".join(parts)
+    if not ref:
+        return None
+    # 1) Repo-root-relative
+    if ref in all_module_paths:
+        return ref
+    # 2) Relative to current file's directory
+    source_dir = str(Path(source_path).parent) if "/" in source_path else ""
+    if source_dir:
+        candidate = f"{source_dir}/{ref}"
+        if candidate in all_module_paths:
+            return candidate
     return None
 
 

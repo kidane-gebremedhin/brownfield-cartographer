@@ -8,7 +8,8 @@ High-level responsibilities:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import sys
+from dataclasses import asdict, dataclass
 import json
 import logging
 from pathlib import Path
@@ -20,6 +21,7 @@ from agents.archivist import ArchivistInputs, write_artifacts
 from agents.hydrologist import HydrologistResult, build_lineage_graph
 from agents.semanticist import run_semanticist
 from agents.surveyor import SurveyorResult, run_surveyor
+from graph.serializers import serialize_digraph
 from models.trace import CartographyTraceEntry, agent_trace_entry
 from analyzers.sql_lineage import SqlDialect
 from graph.visualization import build_lineage_graph_html, build_module_graph_html
@@ -56,6 +58,22 @@ class AnalyzeResult:
     lineage_nodes: int
     lineage_edges: int
     reused: bool = False  # True when incremental reuse (no re-analysis)
+
+
+@dataclass(frozen=True)
+class SurveyorOnlyOptions:
+    input_path_or_url: str
+    output_dir: Path | None = None
+    branch: str | None = None
+
+
+@dataclass(frozen=True)
+class SurveyorOnlyResult:
+    repo_root: Path
+    artifact_dir: Path
+    modules_analyzed: int
+    graph_nodes: int
+    graph_edges: int
 
 
 @dataclass(frozen=True)
@@ -105,7 +123,9 @@ def run_analyze(opts: AnalyzeOptions) -> AnalyzeResult:
         if not changes.unchanged:
             logger.info("Invalidating: %s (added=%s, removed=%s, modified=%s)", changes.reason, len(changes.added), len(changes.removed), len(changes.modified))
 
+        print("Running Surveyor (module graph)...", flush=True, file=sys.stderr)
         surveyor_result: SurveyorResult = run_surveyor(repo_root)
+        print("Running Hydrologist (lineage graph)...", flush=True, file=sys.stderr)
         hydro_result: HydrologistResult = build_lineage_graph(repo_root, dialect=opts.dialect)
 
         trace_events: list[CartographyTraceEntry | dict[str, Any]] = [
@@ -117,13 +137,18 @@ def run_analyze(opts: AnalyzeOptions) -> AnalyzeResult:
         semanticist_result = None
         day_one_markdown = None
         if getattr(opts, "llm_provider", None) is not None:
+            def _progress(done: int, total: int, phase: str) -> None:
+                if total > 0 and (done % 10 == 0 or done == total):
+                    print(f"  Semanticist: {phase} {done}/{total}", flush=True, file=sys.stderr)
             try:
+                print("Running Semanticist (purpose, drift, domains, day-one)...", flush=True, file=sys.stderr)
                 sem_result = run_semanticist(
                     repo_root,
                     surveyor_result,
                     hydro_result,
                     opts.llm_provider,
                     embeddings_provider=getattr(opts, "embeddings_provider", None),
+                    progress_callback=_progress,
                 )
                 semanticist_result = sem_result
                 day_one_markdown = sem_result.day_one_markdown
@@ -133,6 +158,7 @@ def run_analyze(opts: AnalyzeOptions) -> AnalyzeResult:
 
         trace_events.append(agent_trace_entry("archivist", evidence_source="artifact serialization", confidence=1.0, payload={}))
 
+        print("Writing artifacts...", flush=True, file=sys.stderr)
         artifact_dir = write_artifacts(
             ArchivistInputs(
                 repo_root=repo_root,
@@ -160,6 +186,44 @@ def run_analyze(opts: AnalyzeOptions) -> AnalyzeResult:
             try:
                 repo._tmpdir.cleanup()  # type: ignore[union-attr]
             except Exception as e:  # pragma: no cover - cleanup failures are non-fatal
+                logger.debug("Temporary repo cleanup failed: %s", e)
+
+
+def run_surveyor_only(opts: SurveyorOnlyOptions) -> SurveyorOnlyResult:
+    """Run only the Surveyor agent: load repo, run static analysis, write module graph and metrics."""
+    repo: LoadedRepository | None = None
+    try:
+        repo = load_repository(opts.input_path_or_url, ref=opts.branch)
+        repo_root = repo.root
+        logger.info("Loaded repository at %s (temporary=%s)", repo_root, repo.is_temporary)
+
+        out_dir = Path(opts.output_dir) if opts.output_dir is not None else repo_root / ".cartography"
+        artifact_dir = out_dir.resolve()
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+
+        surveyor_result = run_surveyor(repo_root)
+
+        module_graph = serialize_digraph(surveyor_result.graph)
+        (artifact_dir / "module_graph.json").write_text(json.dumps(module_graph, indent=2), encoding="utf-8")
+
+        modules_list = [asdict(surveyor_result.modules[p]) for p in sorted(surveyor_result.modules)]
+        pagerank = {k: float(v) for k, v in surveyor_result.pagerank.items()}
+        sccs_json = [sorted(s) for s in surveyor_result.sccs]
+        surveyor_metrics = {"modules": modules_list, "pagerank": pagerank, "sccs": sccs_json}
+        (artifact_dir / "surveyor_metrics.json").write_text(json.dumps(surveyor_metrics, indent=2), encoding="utf-8")
+
+        return SurveyorOnlyResult(
+            repo_root=repo_root,
+            artifact_dir=artifact_dir,
+            modules_analyzed=len(surveyor_result.modules),
+            graph_nodes=surveyor_result.graph.number_of_nodes(),
+            graph_edges=surveyor_result.graph.number_of_edges(),
+        )
+    finally:
+        if repo is not None and repo.is_temporary and getattr(repo, "_tmpdir", None) is not None:
+            try:
+                repo._tmpdir.cleanup()  # type: ignore[union-attr]
+            except Exception as e:  # pragma: no cover
                 logger.debug("Temporary repo cleanup failed: %s", e)
 
 

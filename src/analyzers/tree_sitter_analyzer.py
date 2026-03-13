@@ -48,6 +48,7 @@ class PythonModuleFacts:
     imports: list[ImportRecord] = field(default_factory=list)
     functions: list[FunctionRecord] = field(default_factory=list)
     classes: list[ClassRecord] = field(default_factory=list)
+    string_literals: list[str] = field(default_factory=list)  # for path-reference resolution
     loc: int = 0
     complexity_score: float = 0.0
     parse_ok: bool = True
@@ -60,6 +61,35 @@ def _line_of(source: bytes, byte_offset: int) -> int:
 
 def _node_text(node, source: bytes) -> str:
     return source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
+
+
+def _extract_string_content(node, source: bytes) -> str | None:
+    """Extract the inner content of a Python string literal (for path-like reference detection)."""
+    raw = _node_text(node, source)
+    if not raw:
+        return None
+    # Strip prefix (r, f, b, rf, etc.) and quotes
+    start = 0
+    while start < len(raw) and raw[start] in "rubfRUBF":
+        start += 1
+    if start >= len(raw):
+        return None
+    q = raw[start]
+    if q not in ("'", '"'):
+        return None
+    if start + 1 < len(raw) and raw[start : start + 3] == 3 * q:
+        # Triple-quoted
+        end = raw.rfind(3 * q)
+        if end == -1:
+            return None
+        return raw[start + 3 : end].replace("\\\n", "").replace("\\'", "'").replace('\\"', '"')
+    end = raw.rfind(q)
+    if end <= start:
+        return None
+    inner = raw[start + 1 : end]
+    # Minimal unescape for path-like strings
+    inner = inner.replace("\\\\", "\x00").replace("\\'", "'").replace('\\"', '"').replace("\\n", "\n").replace("\x00", "\\")
+    return inner
 
 
 def analyze_python_source(content: bytes, *, path: str = "<memory>") -> PythonModuleFacts:
@@ -84,6 +114,7 @@ def analyze_python_source(content: bytes, *, path: str = "<memory>") -> PythonMo
     imports: list[ImportRecord] = []
     functions: list[FunctionRecord] = []
     classes: list[ClassRecord] = []
+    string_literals: list[str] = []
 
     def walk(node):
         t = node.type
@@ -99,6 +130,10 @@ def analyze_python_source(content: bytes, *, path: str = "<memory>") -> PythonMo
             cr = _extract_class(node, content)
             if cr is not None:
                 classes.append(cr)
+        elif t == "string":
+            s = _extract_string_content(node, content)
+            if s is not None:
+                string_literals.append(s)
         for ch in node.children:
             walk(ch)
 
@@ -116,6 +151,7 @@ def analyze_python_source(content: bytes, *, path: str = "<memory>") -> PythonMo
         imports=imports,
         functions=functions,
         classes=classes,
+        string_literals=string_literals,
         loc=loc,
         complexity_score=complexity,
         parse_ok=True,

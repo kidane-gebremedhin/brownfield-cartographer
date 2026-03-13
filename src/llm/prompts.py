@@ -6,8 +6,8 @@ for escaping or sanitizing values if needed.
 
 from __future__ import annotations
 
-# ---- Purpose statement (code-grounded; avoid simply repeating docstrings) ----
-PURPOSE_STATEMENT_TEMPLATE = """Based only on the code below, write a single short sentence describing this module's purpose. Do not repeat the docstring verbatim; infer from structure, names, and imports.
+# ---- Purpose statement (code-grounded; what it does, not how; not from docstring) ----
+PURPOSE_STATEMENT_TEMPLATE = """Based only on the implementation below, write a single short sentence stating what this module does (its purpose), not how it does it. Use only evidence from the code: structure, names, imports, functions, and classes. Do not use or repeat the docstring; infer purpose from implementation.
 
 Path: {module_path}
 LOC: {loc}
@@ -21,37 +21,44 @@ Source (first ~80 lines):
 {source_preview}
 ```
 
-Purpose (one sentence):"""
+Purpose (one sentence, what this module does):"""
 
-# ---- Documentation drift classification ----
-DRIFT_CLASSIFICATION_TEMPLATE = """Classify how well the existing documentation matches the code-derived purpose.
+# ---- Documentation drift: flag if docstring contradicts implementation ----
+DRIFT_CLASSIFICATION_TEMPLATE = """Classify how well the existing docstring matches the code-derived purpose (from implementation evidence).
 
-Code-derived purpose: {purpose}
+Code-derived purpose (from code, not docstring): {purpose}
 Existing docstring or comment: {docstring}
 
 Respond with exactly one word: aligned | stale | contradictory | insufficient
 - aligned: doc accurately reflects current purpose
 - stale: doc is outdated but not wrong
-- contradictory: doc conflicts with code purpose
+- contradictory: doc contradicts or conflicts with code purpose
 - insufficient: doc missing or too vague to compare
 
 Classification:"""
 
-# ---- Domain clustering: label for a cluster of module purposes ----
-CLUSTER_LABEL_TEMPLATE = """These modules were grouped by similarity. Suggest a short domain label (2–4 words) for this group. Reply with only the label, no explanation.
+# ---- Domain clustering: business-domain boundaries (ingestion, transformation, etc.) ----
+CLUSTER_LABEL_TEMPLATE = """These modules were grouped by semantic similarity. Suggest a short business-domain label (2–4 words) for this group, e.g. ingestion, transformation, serving, monitoring, orchestration, testing, api. Reply with only the label, no explanation.
 
 Module purposes in this group:
 {module_purposes}
 
 Domain label:"""
 
-# ---- Day-One synthesis (five FDE answers) ----
-DAY_ONE_TEMPLATE = """Synthesize the five Day-One answers for a developer onboarding to this codebase. Use only the provided context. For each answer, cite specific evidence: file paths and line numbers where applicable (e.g. "see src/ingest.py:12-45", "from lineage graph: table X").
+# ---- Five FDE Day-One Answers: synthesize Surveyor + Hydrologist with LLM reasoning ----
+DAY_ONE_TEMPLATE = """Synthesize the five Day-One answers for a developer onboarding to this codebase. Use only the provided context.
+
+Definitions (use these precisely):
+- **Primary ingestion path**: How data is moved from EXTERNAL systems (source databases, S3, etc.) INTO the warehouse. Identify: (1) source systems (e.g. Postgres, S3), (2) the ingestion tool that does the move (e.g. Airbyte, dlt), (3) where that tool is configured in the repo, (4) the orchestrator that triggers ingestion (e.g. Dagster). Do NOT describe only dbt upstream lineage or "sources" inside the warehouse—that is transformation, not ingestion. If context includes "Ingestion (data into warehouse):" use that.
+- **Critical outputs/endpoints**: The 3-5 most critical output datasets/endpoints, such as final datasets, APIs, reports, or key deliverables (lineage sinks).
+- **Blast radius**: Downstream impact if the most critical module (e.g. highest PageRank or key sink) fails.
+- **Business logic concentrated vs distributed**: Where business logic is concentrated vs distributed (e.g. in dbt transformations, ingestion pipelines, PageRank hubs).
+- **Git velocity hotspots**: Files changed most often (use "Raw git velocity" when present).
 
 Context:
 {context}
 
-Answer each in 1–3 short sentences. Use the exact headings below. Include evidence citations (file path and line range or graph node) for trust.
+Answer each in 1–3 short sentences. Use the exact headings below. Include evidence citations (source_file:line_range or graph node) so the reader can verify.
 
 1. Primary ingestion path
 2. Critical outputs/endpoints

@@ -1,6 +1,15 @@
 from pathlib import Path
 
-from agents.hydrologist import build_lineage_graph, find_sources, find_sinks, blast_radius
+import pytest
+
+from agents.hydrologist import (
+    build_lineage_graph,
+    find_sources,
+    find_sinks,
+    blast_radius,
+    upstream_dependencies,
+    schema_change_impact,
+)
 
 
 def _fixture_path(name: str) -> Path:
@@ -44,3 +53,42 @@ def test_hydrologist_dag_style_fixture():
     result = build_lineage_graph(repo)
     g = result.graph
     assert g.number_of_nodes() >= 1
+
+
+def test_lineage_edges_have_metadata():
+    """DataLineageGraph edges carry transformation_type, source_file, line range when available."""
+    repo = _fixture_path("hydro_repo")
+    result = build_lineage_graph(repo)
+    g = result.graph
+    for u, v, attrs in g.edges(data=True):
+        assert "edge_type" in attrs
+        assert attrs.get("source_file") or attrs.get("transformation_type")
+
+
+def test_upstream_dependencies():
+    """upstream_dependencies returns upstream nodes and edge evidence (source_file, line_range)."""
+    repo = _fixture_path("hydro_repo")
+    result = build_lineage_graph(repo)
+    g = result.graph
+    # Pick any node that might have upstream (e.g. a transformation or sink)
+    candidates = [n for n in g.nodes() if g.in_degree(n) > 0]
+    if not candidates:
+        pytest.skip("no node with upstream in fixture")
+    node = next(iter(candidates))
+    out = upstream_dependencies(g, node, max_depth=5, include_evidence=True)
+    assert "dataset" in out
+    assert "upstream_nodes" in out
+    assert "edges" in out
+    assert node in out["upstream_nodes"]
+
+
+def test_schema_change_impact():
+    """schema_change_impact returns downstream nodes affected by changing a table's schema."""
+    repo = _fixture_path("hydro_repo")
+    result = build_lineage_graph(repo)
+    g = result.graph
+    # Start from a source (raw.users) and get downstream impact
+    out = schema_change_impact(g, "raw.users", max_depth=5, include_evidence=True)
+    assert out["dataset"] == "raw.users"
+    assert "affected_downstream_nodes" in out
+    assert "edges" in out

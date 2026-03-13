@@ -79,6 +79,10 @@ def build_module_graph_html(
         g.nodes[n]["title"] = _module_node_title(n, modules, pagerank)
         g.nodes[n]["group"] = language_groups[lang]
 
+    for u, v, attrs in list(g.edges(data=True)):
+        edge_type = attrs.get("edge_type", "reference")
+        g[u][v]["title"] = edge_type  # hover: import vs path_reference
+
     nt = Network(height="700px", width="100%", directed=True)
     nt.from_nx(g)
     nt.write_html(str(out_path), open_browser=open_browser)

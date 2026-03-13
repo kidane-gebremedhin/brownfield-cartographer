@@ -11,10 +11,12 @@ from orchestrator import (
     AnalyzeOptions,
     AnalyzeResult,
     QueryResult,
+    SurveyorOnlyResult,
     VisualizeResult,
     _graph_from_payload,
     run_analyze,
     run_query,
+    run_surveyor_only,
     run_visualize,
 )
 
@@ -107,6 +109,30 @@ def test_run_query_uses_existing_artifacts(tmp_path):
     assert res.modules == 1
     assert res.lineage_nodes == 1
     assert res.lineage_edges == 1
+
+
+def test_cli_surveyor_uses_orchestrator(monkeypatch, tmp_path, capsys):
+    fake_artifacts = tmp_path / ".cartography"
+    fake_artifacts.mkdir()
+
+    def _fake_run_surveyor_only(opts):
+        return SurveyorOnlyResult(
+            repo_root=Path("/fake/repo"),
+            artifact_dir=fake_artifacts,
+            modules_analyzed=4,
+            graph_nodes=4,
+            graph_edges=3,
+        )
+
+    monkeypatch.setattr("cli.run_surveyor_only", _fake_run_surveyor_only)
+
+    code = cli_main(["surveyor", "/fake/repo"])
+    captured = capsys.readouterr()
+    assert code == 0
+    assert "Artifacts written to" in captured.out
+    assert "Modules analyzed: 4" in captured.out
+    assert "4 nodes, 3 edges" in captured.out
+    assert "surveyor_metrics.json" in captured.out
 
 
 def test_cli_analyze_uses_orchestrator(monkeypatch, tmp_path, capsys):
